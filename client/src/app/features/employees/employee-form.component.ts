@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -52,7 +52,8 @@ export class EmployeeFormComponent implements OnInit {
     private readonly fb: FormBuilder,
     private readonly api: ApiService,
     private readonly route: ActivatedRoute,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
       employeeCode: ['', Validators.required],
@@ -73,6 +74,7 @@ export class EmployeeFormComponent implements OnInit {
 
     this.api.get<Array<{ id: number; name: string }>>('departments').subscribe((value) => {
       this.departments = value;
+      this.cdr.markForCheck();
     });
 
     if (this.employeeId) {
@@ -87,6 +89,7 @@ export class EmployeeFormComponent implements OnInit {
           status: this.toStatusNumber(value.status),
           departmentId: value.departmentId
         });
+        this.cdr.markForCheck();
       });
     }
   }

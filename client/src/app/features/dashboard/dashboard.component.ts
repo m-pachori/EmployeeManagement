@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
 
 @Component({
@@ -32,9 +32,15 @@ import { ApiService } from '../../core/services/api.service';
 export class DashboardComponent implements OnInit {
   summary: any;
 
-  constructor(private readonly api: ApiService) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
-    this.api.get<any>('dashboard/summary').subscribe((value) => (this.summary = value));
+    this.api.get<any>('dashboard/summary').subscribe((value) => {
+      this.summary = value;
+      this.cdr.markForCheck();
+    });
   }
 }

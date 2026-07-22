@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -46,7 +46,8 @@ export class LoginComponent {
   constructor(
     private readonly fb: FormBuilder,
     private readonly authService: AuthService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
       userNameOrEmail: ['', [Validators.required]],
@@ -71,6 +72,7 @@ export class LoginComponent {
       error: (error) => {
         this.isLoading = false;
         this.errorMessage = error?.error?.title ?? 'Login failed. Check credentials and API status.';
+        this.cdr.markForCheck();
       }
     });
   }

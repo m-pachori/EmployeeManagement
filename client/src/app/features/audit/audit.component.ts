@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
 
 @Component({
@@ -29,11 +29,27 @@ import { ApiService } from '../../core/services/api.service';
 export class AuditComponent implements OnInit {
   items: any[] = [];
 
-  constructor(private readonly api: ApiService) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.api.get<any>('audit/logs', { page: 1, pageSize: 50 }).subscribe((value) => {
-      this.items = value.items ?? [];
+      const payload = value as any;
+      const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
+      const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
+
+      this.items = rows.map((row) => ({
+        id: row.id ?? row.Id,
+        createdDate: row.createdDate ?? row.CreatedDate,
+        eventType: row.eventType ?? row.EventType,
+        entityName: row.entityName ?? row.EntityName,
+        createdBy: row.createdBy ?? row.CreatedBy,
+        details: row.details ?? row.Details
+      }));
+
+      this.cdr.markForCheck();
     });
   }
 }

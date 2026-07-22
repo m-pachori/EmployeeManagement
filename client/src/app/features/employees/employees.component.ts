@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -59,7 +59,10 @@ export class EmployeesComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
 
-  constructor(private readonly api: ApiService) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.load();
@@ -73,24 +76,32 @@ export class EmployeesComponent implements OnInit {
       .get<any>('employees', { search: this.search, page: 1, pageSize: 25, sortBy: 'createdDate', sortDirection: 'desc' })
       .subscribe({
         next: (value) => {
-          const payload = value as any;
-          const rows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? (Array.isArray(payload) ? payload : []);
+          try {
+            const payload = value as any;
+            const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
+            const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
 
-          this.items = (rows as any[]).map((row) => ({
-            id: row.id ?? row.Id,
-            employeeCode: row.employeeCode ?? row.EmployeeCode,
-            firstName: row.firstName ?? row.FirstName,
-            lastName: row.lastName ?? row.LastName,
-            email: row.email ?? row.Email,
-            department: row.department ?? row.Department,
-            status: row.status ?? row.Status
-          }));
+            this.items = rows.map((row) => ({
+              id: row.id ?? row.Id,
+              employeeCode: row.employeeCode ?? row.EmployeeCode,
+              firstName: row.firstName ?? row.FirstName,
+              lastName: row.lastName ?? row.LastName,
+              email: row.email ?? row.Email,
+              department: row.department ?? row.Department,
+              status: row.status ?? row.Status
+            }));
+          } catch {
+            this.items = [];
+            this.errorMessage = 'Failed to parse employees response.';
+          }
 
           this.isLoading = false;
+          this.cdr.markForCheck();
         },
         error: (error) => {
           this.isLoading = false;
           this.errorMessage = error?.error?.title ?? error?.error?.message ?? 'Failed to load employees.';
+          this.cdr.markForCheck();
         }
       });
   }

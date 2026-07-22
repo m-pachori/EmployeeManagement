@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -44,7 +44,8 @@ export class RolesComponent implements OnInit {
 
   constructor(
     private readonly api: ApiService,
-    private readonly fb: FormBuilder
+    private readonly fb: FormBuilder,
+    private readonly cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
       name: ['', Validators.required],
@@ -57,8 +58,20 @@ export class RolesComponent implements OnInit {
   }
 
   loadRoles() {
-    this.api.get<any[]>('roles').subscribe((value) => {
-      this.roles = value;
+    this.api.get<any>('roles').subscribe((value) => {
+      const payload = value as any;
+      const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
+      const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
+
+      this.roles = rows.map((row) => ({
+        id: row.id ?? row.Id,
+        name: row.name ?? row.Name,
+        description: row.description ?? row.Description,
+        permissionCount: row.permissionCount ?? row.PermissionCount ?? 0,
+        userCount: row.userCount ?? row.UserCount ?? 0
+      }));
+
+      this.cdr.markForCheck();
     });
   }
 

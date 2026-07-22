@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 
@@ -98,7 +98,8 @@ export class UsersComponent implements OnInit {
 
   constructor(
     private readonly api: ApiService,
-    private readonly fb: FormBuilder
+    private readonly fb: FormBuilder,
+    private readonly cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
       userName: ['', Validators.required],
@@ -120,22 +121,30 @@ export class UsersComponent implements OnInit {
 
     this.api.get<any>('users').subscribe({
       next: (value) => {
-        const payload = value as any;
-        const rows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? (Array.isArray(payload) ? payload : []);
+        try {
+          const payload = value as any;
+          const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
+          const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
 
-        this.items = (rows as any[]).map((row) => ({
-          id: row.id ?? row.Id,
-          userName: row.userName ?? row.UserName,
-          email: row.email ?? row.Email,
-          isActive: row.isActive ?? row.IsActive,
-          roles: row.roles ?? row.Roles ?? []
-        }));
+          this.items = rows.map((row) => ({
+            id: row.id ?? row.Id,
+            userName: row.userName ?? row.UserName,
+            email: row.email ?? row.Email,
+            isActive: row.isActive ?? row.IsActive,
+            roles: row.roles ?? row.Roles ?? []
+          }));
+        } catch {
+          this.items = [];
+          this.loadErrorMessage = 'Failed to parse users response.';
+        }
 
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: (error) => {
         this.isLoading = false;
         this.loadErrorMessage = this.extractErrorMessage(error, 'Failed to load users.');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -170,10 +179,12 @@ export class UsersComponent implements OnInit {
           this.isSaving = false;
           this.form.reset({ userName: '', email: '', firstName: '', lastName: '', password: '', roleIdsCsv: '' });
           this.load();
+          this.cdr.markForCheck();
         },
         error: (error) => {
           this.isSaving = false;
           this.saveErrorMessage = this.extractErrorMessage(error, 'Failed to create user.');
+          this.cdr.markForCheck();
         }
       });
   }

@@ -26,6 +26,17 @@ builder.Host.UseSerilog();
 // Add services to the container.
 builder.Services.AddControllers();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ClientDevPolicy", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200", "http://localhost:4201", "http://127.0.0.1:4201")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -155,6 +166,8 @@ app.UseHttpsRedirection();
 app.UseResponseCaching();
 
 app.UseRateLimiter();
+
+app.UseCors("ClientDevPolicy");
 
 app.UseAuthentication();
 

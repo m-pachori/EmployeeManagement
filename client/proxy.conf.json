@@ -1,0 +1,14 @@
+{
+  "/api": {
+    "target": "https://localhost:7259",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
+  "/uploads": {
+    "target": "https://localhost:7259",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  }
+}

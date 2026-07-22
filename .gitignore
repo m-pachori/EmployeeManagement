@@ -1,0 +1,66 @@
+.vs/
+.env
+*.csproj.user
+.vs/EmployeeManagement/config/applicationhost.config
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/CodeChunks.db
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/CodeChunks.db-shm
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/CodeChunks.db-wal
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/SemanticSymbols.db
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/SemanticSymbols.db-shm
+.vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/SemanticSymbols.db-wal
+.vs/EmployeeManagement/FileContentIndex/2ac2c14b-b5e3-49d0-b66d-cf803719c65b.vsidx
+.vs/EmployeeManagement/FileContentIndex/457c64de-d014-478f-b280-3ec67a3f2467.vsidx
+.vs/EmployeeManagement/FileContentIndex/60e7067b-71fc-4d94-8423-dd63db3b18fc.vsidx
+.vs/EmployeeManagement/FileContentIndex/64759100-506d-4405-a5ae-72d8dfe998d7.vsidx
+.vs/EmployeeManagement/FileContentIndex/7dc9cd0f-42af-44d1-b6b0-3165ce38509f.vsidx
+.vs/EmployeeManagement/v18/.suo
+.vs/EmployeeManagement/v18/DocumentLayout.backup.json
+.vs/EmployeeManagement/v18/DocumentLayout.json
+
+# Ignore all build output folders
+**/bin/
+**/obj/
+
+# Ignore all Node.js dependency folders
+**/node_modules/
+# Cache and build outputs
+.angular/
+dist/
+tmp/
+out-tsc/
+bazel-out/
+
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Secrets and local environments
+.env
+.env.local
+src/environments/environment.local.ts

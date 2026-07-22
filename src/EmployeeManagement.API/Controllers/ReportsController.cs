@@ -174,10 +174,23 @@ public class ReportsController : ControllerBase
             string.Join(" | ", header)
         };
 
-        lines.AddRange(rows.Select(r => string.Join(" | ", r)));
-        var content = string.Join("\n", lines.Take(50));
+        lines.AddRange(rows.Select(r => string.Join(" | ", r.Select(v => v.Replace("\r", " ").Replace("\n", " ")))));
 
-        var stream = $"BT /F1 10 Tf 50 780 Td ({EscapePdf(content)}) Tj ET";
+        var streamBuilder = new StringBuilder();
+        streamBuilder.AppendLine("BT");
+        streamBuilder.AppendLine("/F1 10 Tf");
+        streamBuilder.AppendLine("12 TL");
+        streamBuilder.AppendLine("50 780 Td");
+
+        foreach (var line in lines.Take(60))
+        {
+            streamBuilder.AppendLine($"({EscapePdf(line)}) Tj");
+            streamBuilder.AppendLine("T*");
+        }
+
+        streamBuilder.AppendLine("ET");
+
+        var stream = streamBuilder.ToString();
         var objects = new List<string>
         {
             "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",

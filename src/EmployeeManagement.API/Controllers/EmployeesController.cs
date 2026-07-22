@@ -280,13 +280,30 @@ public class EmployeesController : ControllerBase
         return Ok(new { message = "Employee deleted successfully." });
     }
 
+    private const long MaxPhotoSizeInBytes = 250 * 1024;
+    private static readonly string[] AllowedPhotoExtensions = [".jpg", ".jpeg"];
+    private static readonly string[] AllowedPhotoContentTypes = ["image/jpeg"];
+
     [HttpPost("{id:int}/photo")]
     [Authorize(Policy = Permissions.EmployeesWrite)]
+    [RequestSizeLimit(MaxPhotoSizeInBytes)]
     public async Task<IActionResult> UploadPhoto(int id, IFormFile file, CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
         {
             throw new ApiException(StatusCodes.Status400BadRequest, "Photo file is required.");
+        }
+
+        if (file.Length > MaxPhotoSizeInBytes)
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Photo file size must not exceed 250 KB.");
+        }
+
+        var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant() ?? string.Empty;
+        var contentType = file.ContentType?.ToLowerInvariant() ?? string.Empty;
+        if (!AllowedPhotoExtensions.Contains(extension) || !AllowedPhotoContentTypes.Contains(contentType))
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Only JPG photo files are allowed.");
         }
 
         var employee = await _unitOfWork.Repository<Employee>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -295,7 +312,6 @@ public class EmployeesController : ControllerBase
         var uploadsRoot = Path.Combine(_environment.ContentRootPath, "uploads", "employees", id.ToString());
         Directory.CreateDirectory(uploadsRoot);
 
-        var extension = Path.GetExtension(file.FileName);
         var fileName = $"photo_{DateTime.UtcNow:yyyyMMddHHmmss}{extension}";
         var absolutePath = Path.Combine(uploadsRoot, fileName);
 

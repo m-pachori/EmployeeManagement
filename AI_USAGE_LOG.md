@@ -11,6 +11,8 @@ Last updated: 2026-07-22
 | Metric | Count | Notes |
 |---|---:|---|
 | Total AI prompts used | 19 | Includes analysis, planning, documentation, stack decision updates, AI log guidance, requirement coverage refinement, gap review, gap fixes, Phase 1-7 implementation, and zoneless change-detection debugging |
+| User-originated prompts | 19 | Prompts explicitly requested by the user |
+| Agent-initiated prompts | 0 | Autonomous prompts/actions started by the agent without a direct user prompt |
 | Accepted AI suggestions | 11 | Suggestions used without material rework |
 | Modified AI suggestions | 3 | Suggestions adapted to project decisions |
 | Rejected AI suggestions | 2 | zone.js/`provideZoneChangeDetection()` and `ApplicationRef.tick()` interceptor approaches, both reverted |
@@ -23,27 +25,32 @@ Last updated: 2026-07-22
 
 ## Prompts Used
 
-| ID | Date | Area | Prompt / Request Summary | Tool |
-|---|---|---|---|---|
-| P1 | 2026-07-22 | Requirements | Analyze the assessment document and provide requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
-| P2 | 2026-07-22 | Documentation | Create a Markdown file with requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
-| P3 | 2026-07-22 | Documentation | Create separate files for requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
-| P4 | 2026-07-22 | Stack Decision | Update the plan to use Angular 22. | GitHub Copilot / GPT-5.4 |
-| P5 | 2026-07-22 | Governance | Provide suggestions for logging AI usage against required assessment points. | GitHub Copilot / GPT-5.4 |
-| P6 | 2026-07-22 | Governance | Create the AI usage log and keep metrics updated for this project. | GitHub Copilot / GPT-5.4 |
-| P7 | 2026-07-22 | Documentation | Update both Markdown files to include the assessment's Additional Requirements explicitly. | GitHub Copilot / GPT-5.4 |
-| P8 | 2026-07-22 | Review | Review requirement analysis and implementation plan against the assessment document and identify missing gaps. | GitHub Copilot / GPT-5.4 |
-| P9 | 2026-07-22 | Documentation | Apply fixes for identified gaps (excluding duration) across both planning documents. | GitHub Copilot / GPT-5.4 |
-| P10 | 2026-07-22 | Implementation | Start Phase 1 implementation: scaffold .NET 8 solution (API/Application/Domain/Infrastructure/Tests), configure Serilog/exception middleware/DI/health checks/versioning/rate limiting/caching, add Docker support, and scaffold the Angular 22 client. | GitHub Copilot / GPT-5.4 |
-| P11 | 2026-07-22 | Implementation | Implement Phase 2 and Phase 3: database schema entities/configurations/migration/SQL script, runtime seeding for permissions/roles/admin user, JWT auth with refresh tokens, lockout and password policy flows, authorization policies, and auth unit tests. | GitHub Copilot / GPT-5.4 |
-| P12 | 2026-07-22 | Implementation | Start Phase 4, 5, and 6 backend implementation: employees/departments/users/roles CRUD and policy guards, dashboard/settings/audit endpoints, and report exports (CSV/Excel/PDF baseline) with successful build/test validation. | GitHub Copilot / GPT-5.4 |
-| P13 | 2026-07-22 | Implementation | Implement Phase 7 Angular 22 feature modules (auth, dashboard, employees, departments, users, roles, settings, audit, reports) wired to the backend API. | GitHub Copilot / Claude Sonnet 5 |
-| P14 | 2026-07-22 | Debugging | Diagnose why all list/grid pages showed "Loading..." indefinitely despite the API returning correct data. | GitHub Copilot / Claude Sonnet 5 |
-| P15 | 2026-07-22 | Debugging | Attempt fix via zone.js + `provideZoneChangeDetection()` to restore automatic change detection. | GitHub Copilot / Claude Sonnet 5 |
-| P16 | 2026-07-22 | Debugging | Attempt fix via a global HTTP interceptor calling `ApplicationRef.tick()` after responses. | GitHub Copilot / Claude Sonnet 5 |
-| P17 | 2026-07-22 | Debugging | Apply `ChangeDetectorRef.markForCheck()` in each affected component after async state mutation; verify via Playwright browser automation. | GitHub Copilot / Claude Sonnet 5 |
-| P18 | 2026-07-22 | Review | Perform a code, technical, and functional review of the full codebase against the assessment document and report what is missing. | GitHub Copilot / Claude Sonnet 5 |
-| P19 | 2026-07-22 | Implementation | Fix gaps identified in P18: Employee Designation/Salary/Manager fields and validations, missing Users/Roles endpoints, frontend photo upload/pagination/forgot-password UI, root README, and this AI usage log. | GitHub Copilot / Claude Sonnet 5 |
+| ID | Date | Source | Area | Prompt / Request Summary | Tool |
+|---|---|---|---|---|---|
+| P1 | 2026-07-22 | User | Requirements | Analyze the assessment document and provide requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
+| P2 | 2026-07-22 | User | Documentation | Create a Markdown file with requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
+| P3 | 2026-07-22 | User | Documentation | Create separate files for requirement analysis and implementation plan. | GitHub Copilot / GPT-5.4 |
+| P4 | 2026-07-22 | User | Stack Decision | Update the plan to use Angular 22. | GitHub Copilot / GPT-5.4 |
+| P5 | 2026-07-22 | User | Governance | Provide suggestions for logging AI usage against required assessment points. | GitHub Copilot / GPT-5.4 |
+| P6 | 2026-07-22 | User | Governance | Create the AI usage log and keep metrics updated for this project. | GitHub Copilot / GPT-5.4 |
+| P7 | 2026-07-22 | User | Documentation | Update both Markdown files to include the assessment's Additional Requirements explicitly. | GitHub Copilot / GPT-5.4 |
+| P8 | 2026-07-22 | User | Review | Review requirement analysis and implementation plan against the assessment document and identify missing gaps. | GitHub Copilot / GPT-5.4 |
+| P9 | 2026-07-22 | User | Documentation | Apply fixes for identified gaps (excluding duration) across both planning documents. | GitHub Copilot / GPT-5.4 |
+| P10 | 2026-07-22 | User | Implementation | Start Phase 1 implementation: scaffold .NET 8 solution (API/Application/Domain/Infrastructure/Tests), configure Serilog/exception middleware/DI/health checks/versioning/rate limiting/caching, add Docker support, and scaffold the Angular 22 client. | GitHub Copilot / GPT-5.4 |
+| P11 | 2026-07-22 | User | Implementation | Implement Phase 2 and Phase 3: database schema entities/configurations/migration/SQL script, runtime seeding for permissions/roles/admin user, JWT auth with refresh tokens, lockout and password policy flows, authorization policies, and auth unit tests. | GitHub Copilot / GPT-5.4 |
+| P12 | 2026-07-22 | User | Implementation | Start Phase 4, 5, and 6 backend implementation: employees/departments/users/roles CRUD and policy guards, dashboard/settings/audit endpoints, and report exports (CSV/Excel/PDF baseline) with successful build/test validation. | GitHub Copilot / GPT-5.4 |
+| P13 | 2026-07-22 | User | Implementation | Implement Phase 7 Angular 22 feature modules (auth, dashboard, employees, departments, users, roles, settings, audit, reports) wired to the backend API. | GitHub Copilot / Claude Sonnet 5 |
+| P14 | 2026-07-22 | User | Debugging | Diagnose why all list/grid pages showed "Loading..." indefinitely despite the API returning correct data. | GitHub Copilot / Claude Sonnet 5 |
+| P15 | 2026-07-22 | User | Debugging | Attempt fix via zone.js + `provideZoneChangeDetection()` to restore automatic change detection. | GitHub Copilot / Claude Sonnet 5 |
+| P16 | 2026-07-22 | User | Debugging | Attempt fix via a global HTTP interceptor calling `ApplicationRef.tick()` after responses. | GitHub Copilot / Claude Sonnet 5 |
+| P17 | 2026-07-22 | User | Debugging | Apply `ChangeDetectorRef.markForCheck()` in each affected component after async state mutation; verify via Playwright browser automation. | GitHub Copilot / Claude Sonnet 5 |
+| P18 | 2026-07-22 | User | Review | Perform a code, technical, and functional review of the full codebase against the assessment document and report what is missing. | GitHub Copilot / Claude Sonnet 5 |
+| P19 | 2026-07-22 | User | Implementation | Fix gaps identified in P18: Employee Designation/Salary/Manager fields and validations, missing Users/Roles endpoints, frontend photo upload/pagination/forgot-password UI, root README, and this AI usage log. | GitHub Copilot / Claude Sonnet 5 |
+
+### Prompt Source Legend
+
+- User: Prompt/request explicitly entered by the user.
+- Agent: Autonomous work started by the agent without a direct user prompt (for example, self-initiated follow-up analysis).
 
 ## Accepted AI Suggestions
 
@@ -111,7 +118,9 @@ The following validation was performed on AI-generated project documentation and
 Update this file whenever AI is used for project work.
 
 - Add a new row in Prompts Used for each meaningful prompt or request.
+- Set the `Source` column for each new prompt (`User` or `Agent`).
 - Increase metrics summary counts when new activity occurs.
+- Keep `User-originated prompts` and `Agent-initiated prompts` counts in sync with the Prompts Used table.
 - Add entries to Accepted AI Suggestions when output is used substantially as-is.
 - Add entries to Modified AI Suggestions when output is adapted before use.
 - Add entries to Rejected AI Suggestions when output is discarded, with a concrete reason.

@@ -45,8 +45,9 @@ import { ApiService } from '../../core/services/api.service';
 
     <div class="photo-section" *ngIf="isEdit">
       <h3>Photo</h3>
-      <img *ngIf="photoUrl" [src]="photoUrl" alt="Employee photo" class="photo-preview" />
-      <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
+      <img *ngIf="photoUrl" [src]="photoUrl" alt="Employee photo" class="photo-preview" (error)="onPhotoLoadError()" />
+      <input type="file" accept=".jpg,.jpeg,image/jpeg" (change)="onPhotoSelected($event)" />
+      <small>JPG only, max 250 KB.</small>
       <button type="button" [disabled]="!selectedFile" (click)="uploadPhoto()">Upload Photo</button>
       <div class="success" *ngIf="photoMessage">{{ photoMessage }}</div>
     </div>
@@ -168,7 +169,20 @@ export class EmployeeFormComponent implements OnInit {
 
   onPhotoSelected(event: Event) {
     const input = event.target as HTMLInputElement;
-    this.selectedFile = input.files?.[0] ?? null;
+    const file = input.files?.[0] ?? null;
+    this.photoMessage = '';
+
+    if (file) {
+      const validationError = this.validatePhotoFile(file);
+      if (validationError) {
+        this.photoMessage = validationError;
+        this.selectedFile = null;
+        input.value = '';
+        return;
+      }
+    }
+
+    this.selectedFile = file;
   }
 
   uploadPhoto() {
@@ -191,6 +205,28 @@ export class EmployeeFormComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  private validatePhotoFile(file: File): string {
+    const maxSizeInBytes = 250 * 1024;
+    const allowedTypes = ['image/jpeg'];
+    const isJpgExtension = /\.jpe?g$/i.test(file.name);
+
+    if (!allowedTypes.includes(file.type) || !isJpgExtension) {
+      return 'Only JPG photo files are allowed.';
+    }
+
+    if (file.size > maxSizeInBytes) {
+      return 'Photo file size must not exceed 250 KB.';
+    }
+
+    return '';
+  }
+
+  onPhotoLoadError() {
+    this.photoMessage = 'Failed to load photo.';
+    this.photoUrl = '';
+    this.cdr.markForCheck();
   }
 
   private toDateInput(value: string): string {

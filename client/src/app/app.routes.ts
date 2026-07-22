@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { LoginComponent } from './features/auth/login.component';
+import { ForgotPasswordComponent } from './features/auth/forgot-password.component';
+import { ChangePasswordComponent } from './features/auth/change-password.component';
 import { DashboardComponent } from './features/dashboard/dashboard.component';
 import { EmployeesComponent } from './features/employees/employees.component';
 import { EmployeeFormComponent } from './features/employees/employee-form.component';
@@ -14,6 +16,7 @@ import { AppShellComponent } from './layout/app-shell.component';
 
 export const routes: Routes = [
 	{ path: 'login', component: LoginComponent },
+	{ path: 'forgot-password', component: ForgotPasswordComponent },
 	{
 		path: '',
 		component: AppShellComponent,
@@ -29,7 +32,8 @@ export const routes: Routes = [
 			{ path: 'roles', component: RolesComponent },
 			{ path: 'settings', component: SettingsComponent },
 			{ path: 'audit', component: AuditComponent },
-			{ path: 'reports', component: ReportsComponent }
+			{ path: 'reports', component: ReportsComponent },
+			{ path: 'change-password', component: ChangePasswordComponent }
 		]
 	},
 	{ path: '**', redirectTo: '' }

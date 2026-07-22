@@ -1,8 +1,8 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,18 +15,18 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class SettingsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public SettingsController(ApplicationDbContext context)
+    public SettingsController(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     [HttpGet]
     [Authorize(Policy = Permissions.SettingsRead)]
     public async Task<IActionResult> GetSettings([FromQuery] string? category, CancellationToken cancellationToken)
     {
-        var query = _context.SystemSettings.AsNoTracking().AsQueryable();
+        var query = _unitOfWork.Repository<SystemSetting>().Query().AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(category))
         {
@@ -59,7 +59,7 @@ public class SettingsController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "Category and key are required.");
         }
 
-        var setting = await _context.SystemSettings
+        var setting = await _unitOfWork.Repository<SystemSetting>().Query()
             .FirstOrDefaultAsync(x => x.Category == request.Category && x.Key == request.Key, cancellationToken);
 
         if (setting is null)
@@ -74,7 +74,7 @@ public class SettingsController : ControllerBase
                 UpdatedBy = User.Identity?.Name
             };
 
-            _context.SystemSettings.Add(setting);
+            await _unitOfWork.Repository<SystemSetting>().AddAsync(setting, cancellationToken);
         }
         else
         {
@@ -84,7 +84,7 @@ public class SettingsController : ControllerBase
             setting.UpdatedDate = DateTime.UtcNow;
         }
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = GetCurrentUserId(),
             EventType = "SettingUpsert",
@@ -94,9 +94,9 @@ public class SettingsController : ControllerBase
             CreatedBy = User.Identity?.Name,
             UpdatedBy = User.Identity?.Name,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Setting saved successfully." });
     }
 

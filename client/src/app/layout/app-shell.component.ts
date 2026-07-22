@@ -25,6 +25,7 @@ import { AuthService } from '../core/services/auth.service';
       <main>
         <header>
           <span>Welcome, {{ auth.userName() }}</span>
+          <a routerLink="/change-password" class="change-password-link">Change Password</a>
           <button type="button" (click)="auth.logout()">Logout</button>
         </header>
         <section class="content">
@@ -41,7 +42,9 @@ import { AuthService } from '../core/services/auth.service';
     .sidebar a { color: #dce7f5; text-decoration: none; padding: 0.45rem 0.5rem; border-radius: 0.4rem; }
     .sidebar a.active, .sidebar a:hover { background: #1f4f74; color: #fff; }
     main { display: grid; grid-template-rows: auto 1fr; background: #f4f7fb; }
-    header { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1rem; background: #fff; border-bottom: 1px solid #d9e2ef; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; background: #fff; border-bottom: 1px solid #d9e2ef; }
+    header span { margin-right: auto; }
+    .change-password-link { color: #1f5e96; text-decoration: none; font-size: 0.9rem; }
     button { border: 0; background: #d64545; color: #fff; padding: 0.45rem 0.75rem; border-radius: 0.35rem; cursor: pointer; }
     .content { padding: 1rem; }
     @media (max-width: 900px) {

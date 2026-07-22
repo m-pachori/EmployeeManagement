@@ -16,6 +16,8 @@ import { ApiService } from '../../core/services/api.service';
       <label>Last Name<input formControlName="lastName" /></label>
       <label>Email<input formControlName="email" /></label>
       <label>Phone<input formControlName="phoneNumber" /></label>
+      <label>Designation<input formControlName="designation" /></label>
+      <label>Salary<input type="number" min="0" step="0.01" formControlName="salary" /></label>
       <label>Date Of Joining<input type="date" formControlName="dateOfJoining" /></label>
       <label>Status
         <select formControlName="status">
@@ -31,22 +33,46 @@ import { ApiService } from '../../core/services/api.service';
           <option *ngFor="let d of departments" [ngValue]="d.id">{{ d.name }}</option>
         </select>
       </label>
+      <label>Manager
+        <select formControlName="managerId">
+          <option [ngValue]="null">None</option>
+          <option *ngFor="let m of managers" [ngValue]="m.id" [disabled]="m.id === employeeId">{{ m.firstName }} {{ m.lastName }}</option>
+        </select>
+      </label>
       <button type="submit">Save</button>
+      <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
     </form>
+
+    <div class="photo-section" *ngIf="isEdit">
+      <h3>Photo</h3>
+      <img *ngIf="photoUrl" [src]="photoUrl" alt="Employee photo" class="photo-preview" />
+      <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
+      <button type="button" [disabled]="!selectedFile" (click)="uploadPhoto()">Upload Photo</button>
+      <div class="success" *ngIf="photoMessage">{{ photoMessage }}</div>
+    </div>
   `,
   styles: `
     .grid { display: grid; gap: 0.65rem; max-width: 640px; }
     label { display: grid; gap: 0.3rem; }
     input, select { border: 1px solid #c6d3e0; border-radius: 0.35rem; padding: 0.45rem; }
     button { width: fit-content; border: 0; background: #1f5e96; color: #fff; padding: 0.5rem 0.8rem; border-radius: 0.35rem; }
+    .error { color: #c12828; }
+    .success { color: #1a7a3d; }
+    .photo-section { margin-top: 1.25rem; display: grid; gap: 0.5rem; max-width: 320px; }
+    .photo-preview { width: 120px; height: 120px; object-fit: cover; border-radius: 0.5rem; border: 1px solid #c6d3e0; }
   `
 })
 export class EmployeeFormComponent implements OnInit {
   readonly form;
 
   departments: Array<{ id: number; name: string }> = [];
+  managers: Array<{ id: number; firstName: string; lastName: string }> = [];
   isEdit = false;
-  private employeeId: number | null = null;
+  employeeId: number | null = null;
+  errorMessage = '';
+  photoUrl = '';
+  photoMessage = '';
+  selectedFile: File | null = null;
 
   constructor(
     private readonly fb: FormBuilder,
@@ -61,9 +87,12 @@ export class EmployeeFormComponent implements OnInit {
       lastName: ['', Validators.required],
       email: ['', Validators.required],
       phoneNumber: [''],
+      designation: [''],
+      salary: [null],
       dateOfJoining: ['', Validators.required],
       status: [1, Validators.required],
-      departmentId: [0, Validators.required]
+      departmentId: [0, Validators.required],
+      managerId: [null]
     });
   }
 
@@ -77,17 +106,27 @@ export class EmployeeFormComponent implements OnInit {
       this.cdr.markForCheck();
     });
 
+    this.api.get<any>('employees', { page: 1, pageSize: 100 }).subscribe((value) => {
+      const rows = value?.items ?? [];
+      this.managers = rows.map((row: any) => ({ id: row.id, firstName: row.firstName, lastName: row.lastName }));
+      this.cdr.markForCheck();
+    });
+
     if (this.employeeId) {
       this.api.get<any>(`employees/${this.employeeId}`).subscribe((value) => {
+        this.photoUrl = value.photoUrl ?? '';
         this.form.patchValue({
           employeeCode: value.employeeCode,
           firstName: value.firstName,
           lastName: value.lastName,
           email: value.email,
           phoneNumber: value.phoneNumber,
+          designation: value.designation,
+          salary: value.salary,
           dateOfJoining: this.toDateInput(value.dateOfJoining),
           status: this.toStatusNumber(value.status),
-          departmentId: value.departmentId
+          departmentId: value.departmentId,
+          managerId: value.managerId
         });
         this.cdr.markForCheck();
       });
@@ -100,6 +139,7 @@ export class EmployeeFormComponent implements OnInit {
       return;
     }
 
+    this.errorMessage = '';
     const payload = this.form.getRawValue();
     const request = {
       ...payload,
@@ -107,11 +147,50 @@ export class EmployeeFormComponent implements OnInit {
     };
 
     if (this.employeeId) {
-      this.api.put(`employees/${this.employeeId}`, request).subscribe(() => this.router.navigate(['/employees']));
+      this.api.put(`employees/${this.employeeId}`, request).subscribe({
+        next: () => this.router.navigate(['/employees']),
+        error: (error) => {
+          this.errorMessage = error?.error?.title ?? error?.error?.message ?? 'Failed to update employee.';
+          this.cdr.markForCheck();
+        }
+      });
       return;
     }
 
-    this.api.post('employees', request).subscribe(() => this.router.navigate(['/employees']));
+    this.api.post('employees', request).subscribe({
+      next: () => this.router.navigate(['/employees']),
+      error: (error) => {
+        this.errorMessage = error?.error?.title ?? error?.error?.message ?? 'Failed to create employee.';
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  onPhotoSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files?.[0] ?? null;
+  }
+
+  uploadPhoto() {
+    if (!this.selectedFile || !this.employeeId) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', this.selectedFile);
+
+    this.api.postFile<any>(`employees/${this.employeeId}/photo`, formData).subscribe({
+      next: (response) => {
+        this.photoUrl = response.photoUrl;
+        this.photoMessage = 'Photo uploaded successfully.';
+        this.selectedFile = null;
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.photoMessage = error?.error?.title ?? 'Failed to upload photo.';
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   private toDateInput(value: string): string {

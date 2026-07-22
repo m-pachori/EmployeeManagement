@@ -1,8 +1,8 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,18 +15,18 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class RolesController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public RolesController(ApplicationDbContext context)
+    public RolesController(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     [HttpGet]
     [Authorize(Policy = Permissions.RolesRead)]
     public async Task<IActionResult> GetRoles(CancellationToken cancellationToken)
     {
-        var roles = await _context.Roles
+        var roles = await _unitOfWork.Repository<Role>().Query()
             .AsNoTracking()
             .OrderBy(x => x.Name)
             .Select(x => new
@@ -51,7 +51,7 @@ public class RolesController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "Role name is required.");
         }
 
-        var exists = await _context.Roles.AnyAsync(x => x.Name == request.Name, cancellationToken);
+        var exists = await _unitOfWork.Repository<Role>().Query().AnyAsync(x => x.Name == request.Name, cancellationToken);
         if (exists)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Role already exists.");
@@ -60,13 +60,13 @@ public class RolesController : ControllerBase
         var role = new Role
         {
             Name = request.Name.Trim(),
-            Description = request.Description.Trim(),
+            Description = request.Description?.Trim() ?? string.Empty,
             CreatedBy = User.Identity?.Name,
             UpdatedBy = User.Identity?.Name
         };
 
-        _context.Roles.Add(role);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<Role>().AddAsync(role, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetRoles), new { version = "1" }, role.Id);
     }
@@ -75,7 +75,7 @@ public class RolesController : ControllerBase
     [Authorize(Policy = Permissions.RolesWrite)]
     public async Task<IActionResult> UpdateRole(int id, [FromBody] UpsertRoleRequest request, CancellationToken cancellationToken)
     {
-        var role = await _context.Roles.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var role = await _unitOfWork.Repository<Role>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Role not found.");
 
         if (string.IsNullOrWhiteSpace(request.Name))
@@ -83,26 +83,48 @@ public class RolesController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "Role name is required.");
         }
 
-        var duplicate = await _context.Roles.AnyAsync(x => x.Name == request.Name && x.Id != id, cancellationToken);
+        var duplicate = await _unitOfWork.Repository<Role>().Query().AnyAsync(x => x.Name == request.Name && x.Id != id, cancellationToken);
         if (duplicate)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Role already exists.");
         }
 
         role.Name = request.Name.Trim();
-        role.Description = request.Description.Trim();
+        role.Description = request.Description?.Trim() ?? string.Empty;
         role.UpdatedBy = User.Identity?.Name;
         role.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Role updated successfully." });
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = Permissions.RolesWrite)]
+    public async Task<IActionResult> DeleteRole(int id, CancellationToken cancellationToken)
+    {
+        var role = await _unitOfWork.Repository<Role>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Role not found.");
+
+        var hasUsers = await _unitOfWork.Repository<UserRole>().Query().AnyAsync(x => x.RoleId == id, cancellationToken);
+        if (hasUsers)
+        {
+            throw new ApiException(StatusCodes.Status409Conflict,
+                "Role cannot be deleted because it is assigned to one or more users.");
+        }
+
+        var mappings = await _unitOfWork.Repository<RolePermission>().Query().Where(x => x.RoleId == id).ToListAsync(cancellationToken);
+        _unitOfWork.Repository<RolePermission>().RemoveRange(mappings);
+        _unitOfWork.Repository<Role>().Remove(role);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(new { message = "Role deleted successfully." });
     }
 
     [HttpGet("permissions")]
     [Authorize(Policy = Permissions.RolesRead)]
     public async Task<IActionResult> GetPermissions(CancellationToken cancellationToken)
     {
-        var permissions = await _context.Permissions
+        var permissions = await _unitOfWork.Repository<Permission>().Query()
             .AsNoTracking()
             .OrderBy(x => x.Module)
             .ThenBy(x => x.Action)
@@ -123,10 +145,10 @@ public class RolesController : ControllerBase
     [Authorize(Policy = Permissions.RolesWrite)]
     public async Task<IActionResult> AssignPermissions(int id, [FromBody] AssignPermissionsRequest request, CancellationToken cancellationToken)
     {
-        var role = await _context.Roles.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var role = await _unitOfWork.Repository<Role>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Role not found.");
 
-        var permissions = await _context.Permissions
+        var permissions = await _unitOfWork.Repository<Permission>().Query()
             .Where(x => request.PermissionIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
@@ -135,14 +157,14 @@ public class RolesController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "One or more permission IDs are invalid.");
         }
 
-        var mappings = await _context.RolePermissions.Where(x => x.RoleId == id).ToListAsync(cancellationToken);
-        _context.RolePermissions.RemoveRange(mappings);
-        _context.RolePermissions.AddRange(permissions.Select(x => new RolePermission { RoleId = id, PermissionId = x.Id }));
+        var mappings = await _unitOfWork.Repository<RolePermission>().Query().Where(x => x.RoleId == id).ToListAsync(cancellationToken);
+        _unitOfWork.Repository<RolePermission>().RemoveRange(mappings);
+        await _unitOfWork.Repository<RolePermission>().AddRangeAsync(permissions.Select(x => new RolePermission { RoleId = id, PermissionId = x.Id }), cancellationToken);
 
         role.UpdatedBy = User.Identity?.Name;
         role.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Permissions assigned successfully." });
     }
 }

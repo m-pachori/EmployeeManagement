@@ -1,13 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="login-wrap">
       <form [formGroup]="form" (ngSubmit)="submit()">
@@ -23,6 +23,7 @@ import { AuthService } from '../../core/services/auth.service';
         </label>
         <button type="submit" [disabled]="isLoading">{{ isLoading ? 'Signing in...' : 'Login' }}</button>
         <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
+        <a routerLink="/forgot-password">Forgot password?</a>
       </form>
     </div>
   `,
@@ -35,6 +36,7 @@ import { AuthService } from '../../core/services/auth.service';
     input { border: 1px solid #c6d3e0; border-radius: 0.4rem; padding: 0.55rem; }
     button { border: 0; background: #1f5e96; color: #fff; padding: 0.6rem; border-radius: 0.4rem; cursor: pointer; }
     .error { color: #c12d2d; font-size: 0.85rem; }
+    a { font-size: 0.85rem; color: #1f5e96; text-decoration: none; }
   `
 })
 export class LoginComponent {

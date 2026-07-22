@@ -1,10 +1,11 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
 using EmployeeManagement.Domain.Enums;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,12 +18,12 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class EmployeesController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IWebHostEnvironment _environment;
 
-    public EmployeesController(ApplicationDbContext context, IWebHostEnvironment environment)
+    public EmployeesController(IUnitOfWork unitOfWork, IWebHostEnvironment environment)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _environment = environment;
     }
 
@@ -41,9 +42,10 @@ public class EmployeesController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = _context.Employees
+        var query = _unitOfWork.Repository<Employee>().Query()
             .AsNoTracking()
             .Include(x => x.Department)
+            .Include(x => x.Manager)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -93,10 +95,14 @@ public class EmployeesController : ControllerBase
                 x.Email,
                 x.PhoneNumber,
                 x.PhotoUrl,
+                x.Designation,
+                x.Salary,
                 x.DateOfJoining,
                 Status = x.Status.ToString(),
                 Department = x.Department.Name,
                 x.DepartmentId,
+                x.ManagerId,
+                ManagerName = x.Manager == null ? null : x.Manager.FirstName + " " + x.Manager.LastName,
                 x.CreatedDate
             })
             .ToListAsync(cancellationToken);
@@ -115,9 +121,10 @@ public class EmployeesController : ControllerBase
     [Authorize(Policy = Permissions.EmployeesRead)]
     public async Task<IActionResult> GetEmployeeById(int id, CancellationToken cancellationToken)
     {
-        var employee = await _context.Employees
+        var employee = await _unitOfWork.Repository<Employee>().Query()
             .AsNoTracking()
             .Include(x => x.Department)
+            .Include(x => x.Manager)
             .Include(x => x.Documents)
             .Where(x => x.Id == id)
             .Select(x => new
@@ -129,10 +136,14 @@ public class EmployeesController : ControllerBase
                 x.Email,
                 x.PhoneNumber,
                 x.PhotoUrl,
+                x.Designation,
+                x.Salary,
                 x.DateOfJoining,
                 Status = x.Status.ToString(),
                 x.DepartmentId,
                 Department = x.Department.Name,
+                x.ManagerId,
+                ManagerName = x.Manager == null ? null : x.Manager.FirstName + " " + x.Manager.LastName,
                 documents = x.Documents.Select(d => new
                 {
                     d.Id,
@@ -166,15 +177,18 @@ public class EmployeesController : ControllerBase
             LastName = request.LastName.Trim(),
             Email = request.Email.Trim(),
             PhoneNumber = request.PhoneNumber?.Trim(),
+            Designation = request.Designation?.Trim(),
+            Salary = request.Salary,
             DateOfJoining = request.DateOfJoining,
             Status = request.Status,
             DepartmentId = request.DepartmentId,
+            ManagerId = request.ManagerId,
             CreatedBy = User.Identity?.Name ?? "system",
             UpdatedBy = User.Identity?.Name ?? "system"
         };
 
-        _context.Employees.Add(employee);
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<Employee>().AddAsync(employee, cancellationToken);
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = GetCurrentUserId(),
             EventType = "EmployeeCreate",
@@ -183,9 +197,9 @@ public class EmployeesController : ControllerBase
             CreatedBy = User.Identity?.Name,
             UpdatedBy = User.Identity?.Name,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetEmployeeById), new { id = employee.Id, version = "1" }, employee.Id);
     }
@@ -194,7 +208,7 @@ public class EmployeesController : ControllerBase
     [Authorize(Policy = Permissions.EmployeesWrite)]
     public async Task<IActionResult> UpdateEmployee(int id, [FromBody] UpdateEmployeeRequest request, CancellationToken cancellationToken)
     {
-        var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var employee = await _unitOfWork.Repository<Employee>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Employee not found.");
 
         await ValidateEmployeeRequestAsync(new CreateEmployeeRequest
@@ -204,9 +218,12 @@ public class EmployeesController : ControllerBase
             LastName = request.LastName,
             Email = request.Email,
             PhoneNumber = request.PhoneNumber,
+            Designation = request.Designation,
+            Salary = request.Salary,
             DateOfJoining = request.DateOfJoining,
             Status = request.Status,
-            DepartmentId = request.DepartmentId
+            DepartmentId = request.DepartmentId,
+            ManagerId = request.ManagerId
         }, cancellationToken, id);
 
         employee.EmployeeCode = request.EmployeeCode.Trim();
@@ -214,13 +231,16 @@ public class EmployeesController : ControllerBase
         employee.LastName = request.LastName.Trim();
         employee.Email = request.Email.Trim();
         employee.PhoneNumber = request.PhoneNumber?.Trim();
+        employee.Designation = request.Designation?.Trim();
+        employee.Salary = request.Salary;
         employee.DateOfJoining = request.DateOfJoining;
         employee.Status = request.Status;
         employee.DepartmentId = request.DepartmentId;
+        employee.ManagerId = request.ManagerId;
         employee.UpdatedBy = User.Identity?.Name ?? "system";
         employee.UpdatedDate = DateTime.UtcNow;
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = GetCurrentUserId(),
             EventType = "EmployeeUpdate",
@@ -230,9 +250,9 @@ public class EmployeesController : ControllerBase
             CreatedBy = User.Identity?.Name,
             UpdatedBy = User.Identity?.Name,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Employee updated successfully." });
     }
 
@@ -240,11 +260,11 @@ public class EmployeesController : ControllerBase
     [Authorize(Policy = Permissions.EmployeesWrite)]
     public async Task<IActionResult> DeleteEmployee(int id, CancellationToken cancellationToken)
     {
-        var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var employee = await _unitOfWork.Repository<Employee>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Employee not found.");
 
-        _context.Employees.Remove(employee);
-        _context.AuditLogs.Add(new AuditLog
+        _unitOfWork.Repository<Employee>().Remove(employee);
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = GetCurrentUserId(),
             EventType = "EmployeeDelete",
@@ -254,9 +274,9 @@ public class EmployeesController : ControllerBase
             CreatedBy = User.Identity?.Name,
             UpdatedBy = User.Identity?.Name,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Employee deleted successfully." });
     }
 
@@ -269,7 +289,7 @@ public class EmployeesController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "Photo file is required.");
         }
 
-        var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var employee = await _unitOfWork.Repository<Employee>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Employee not found.");
 
         var uploadsRoot = Path.Combine(_environment.ContentRootPath, "uploads", "employees", id.ToString());
@@ -288,7 +308,7 @@ public class EmployeesController : ControllerBase
         employee.UpdatedBy = User.Identity?.Name ?? "system";
         employee.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Photo uploaded successfully.", employee.PhotoUrl });
     }
 
@@ -296,7 +316,7 @@ public class EmployeesController : ControllerBase
     [Authorize(Policy = Permissions.ReportsRead)]
     public async Task<IActionResult> ExportCsv(CancellationToken cancellationToken)
     {
-        var rows = await _context.Employees
+        var rows = await _unitOfWork.Repository<Employee>().Query()
             .AsNoTracking()
             .Include(x => x.Department)
             .OrderBy(x => x.EmployeeCode)
@@ -333,6 +353,8 @@ public class EmployeesController : ControllerBase
         return File(bytes, "text/csv", $"employees_{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
     }
 
+    private static readonly Regex PhoneRegex = new(@"^\+?[0-9\s\-()]{7,20}$", RegexOptions.Compiled);
+
     private async Task ValidateEmployeeRequestAsync(CreateEmployeeRequest request, CancellationToken cancellationToken, int? existingEmployeeId = null)
     {
         if (string.IsNullOrWhiteSpace(request.EmployeeCode)
@@ -344,21 +366,52 @@ public class EmployeesController : ControllerBase
                 "Employee code, first name, last name, and email are required.");
         }
 
-        var departmentExists = await _context.Departments
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && !PhoneRegex.IsMatch(request.PhoneNumber))
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest,
+                "Phone number must contain only digits, spaces, and the characters + - ( ) and be 7-20 characters long.");
+        }
+
+        if (request.DateOfJoining.Date > DateTime.UtcNow.Date)
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Date of joining cannot be in the future.");
+        }
+
+        if (request.Salary.HasValue && request.Salary.Value <= 0)
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Salary must be a positive value.");
+        }
+
+        var departmentExists = await _unitOfWork.Repository<Department>().Query()
             .AnyAsync(x => x.Id == request.DepartmentId && x.IsActive, cancellationToken);
         if (!departmentExists)
         {
             throw new ApiException(StatusCodes.Status400BadRequest, "Department does not exist or is inactive.");
         }
 
-        var duplicateCode = await _context.Employees
+        if (request.ManagerId.HasValue)
+        {
+            if (request.ManagerId.Value == existingEmployeeId)
+            {
+                throw new ApiException(StatusCodes.Status400BadRequest, "An employee cannot be their own manager.");
+            }
+
+            var managerExists = await _unitOfWork.Repository<Employee>().Query()
+                .AnyAsync(x => x.Id == request.ManagerId.Value, cancellationToken);
+            if (!managerExists)
+            {
+                throw new ApiException(StatusCodes.Status400BadRequest, "Manager does not exist.");
+            }
+        }
+
+        var duplicateCode = await _unitOfWork.Repository<Employee>().Query()
             .AnyAsync(x => x.EmployeeCode == request.EmployeeCode && x.Id != existingEmployeeId, cancellationToken);
         if (duplicateCode)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Employee code already exists.");
         }
 
-        var duplicateEmail = await _context.Employees
+        var duplicateEmail = await _unitOfWork.Repository<Employee>().Query()
             .AnyAsync(x => x.Email == request.Email && x.Id != existingEmployeeId, cancellationToken);
         if (duplicateEmail)
         {
@@ -395,9 +448,12 @@ public class CreateEmployeeRequest
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public string? Designation { get; set; }
+    public decimal? Salary { get; set; }
     public DateTime DateOfJoining { get; set; }
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
     public int DepartmentId { get; set; }
+    public int? ManagerId { get; set; }
 }
 
 public class UpdateEmployeeRequest
@@ -407,7 +463,10 @@ public class UpdateEmployeeRequest
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public string? Designation { get; set; }
+    public decimal? Salary { get; set; }
     public DateTime DateOfJoining { get; set; }
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
     public int DepartmentId { get; set; }
+    public int? ManagerId { get; set; }
 }

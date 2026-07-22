@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using EmployeeManagement.Application.Common.Interfaces;
-using EmployeeManagement.Domain.Common;
 
 namespace EmployeeManagement.Infrastructure.Persistence;
 
@@ -18,7 +17,7 @@ public class UnitOfWork : IUnitOfWork
         _context = context;
     }
 
-    public IRepository<T> Repository<T>() where T : BaseEntity
+    public IRepository<T> Repository<T>() where T : class
     {
         return (IRepository<T>)_repositories.GetOrAdd(typeof(T), _ => new Repository<T>(_context));
     }

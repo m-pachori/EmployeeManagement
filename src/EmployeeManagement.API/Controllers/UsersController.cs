@@ -1,9 +1,9 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
 using EmployeeManagement.Infrastructure.Authentication;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,12 +17,12 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class UsersController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
 
-    public UsersController(ApplicationDbContext context, IPasswordHasher<User> passwordHasher)
+    public UsersController(IUnitOfWork unitOfWork, IPasswordHasher<User> passwordHasher)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
     }
 
@@ -30,7 +30,7 @@ public class UsersController : ControllerBase
     [Authorize(Policy = Permissions.UsersRead)]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
-        var users = await _context.Users
+        var users = await _unitOfWork.Repository<User>().Query()
             .AsNoTracking()
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -70,19 +70,19 @@ public class UsersController : ControllerBase
                 "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
         }
 
-        var userNameExists = await _context.Users.AnyAsync(x => x.UserName == request.UserName, cancellationToken);
+        var userNameExists = await _unitOfWork.Repository<User>().Query().AnyAsync(x => x.UserName == request.UserName, cancellationToken);
         if (userNameExists)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Username already exists.");
         }
 
-        var emailExists = await _context.Users.AnyAsync(x => x.Email == request.Email, cancellationToken);
+        var emailExists = await _unitOfWork.Repository<User>().Query().AnyAsync(x => x.Email == request.Email, cancellationToken);
         if (emailExists)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Email already exists.");
         }
 
-        var roles = await _context.Roles
+        var roles = await _unitOfWork.Repository<Role>().Query()
             .Where(x => request.RoleIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
@@ -106,13 +106,15 @@ public class UsersController : ControllerBase
 
         user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<User>().AddAsync(user, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (roles.Count > 0)
         {
-            _context.UserRoles.AddRange(roles.Select(x => new UserRole { UserId = user.Id, RoleId = x.Id }));
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.Repository<UserRole>().AddRangeAsync(
+                roles.Select(x => new UserRole { UserId = user.Id, RoleId = x.Id }),
+                cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
         return CreatedAtAction(nameof(GetUsers), new { version = "1" }, user.Id);
@@ -122,23 +124,23 @@ public class UsersController : ControllerBase
     [Authorize(Policy = Permissions.UsersWrite)]
     public async Task<IActionResult> AssignRoles(int id, [FromBody] AssignRolesRequest request, CancellationToken cancellationToken)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var user = await _unitOfWork.Repository<User>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User not found.");
 
-        var roles = await _context.Roles.Where(x => request.RoleIds.Contains(x.Id)).ToListAsync(cancellationToken);
+        var roles = await _unitOfWork.Repository<Role>().Query().Where(x => request.RoleIds.Contains(x.Id)).ToListAsync(cancellationToken);
         if (request.RoleIds.Count > 0 && roles.Count != request.RoleIds.Count)
         {
             throw new ApiException(StatusCodes.Status400BadRequest, "One or more role IDs are invalid.");
         }
 
-        var existingMappings = await _context.UserRoles.Where(x => x.UserId == id).ToListAsync(cancellationToken);
-        _context.UserRoles.RemoveRange(existingMappings);
-        _context.UserRoles.AddRange(roles.Select(x => new UserRole { UserId = id, RoleId = x.Id }));
+        var existingMappings = await _unitOfWork.Repository<UserRole>().Query().Where(x => x.UserId == id).ToListAsync(cancellationToken);
+        _unitOfWork.Repository<UserRole>().RemoveRange(existingMappings);
+        await _unitOfWork.Repository<UserRole>().AddRangeAsync(roles.Select(x => new UserRole { UserId = id, RoleId = x.Id }), cancellationToken);
 
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Roles assigned successfully." });
     }
 
@@ -146,15 +148,63 @@ public class UsersController : ControllerBase
     [Authorize(Policy = Permissions.UsersWrite)]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateUserStatusRequest request, CancellationToken cancellationToken)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var user = await _unitOfWork.Repository<User>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "User not found.");
 
         user.IsActive = request.IsActive;
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User status updated successfully." });
+    }
+
+    [HttpPut("{id:int}")]
+    [Authorize(Policy = Permissions.UsersWrite)]
+    public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _unitOfWork.Repository<User>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "User not found.");
+
+        if (string.IsNullOrWhiteSpace(request.Email)
+            || string.IsNullOrWhiteSpace(request.FirstName)
+            || string.IsNullOrWhiteSpace(request.LastName))
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Email, first name, and last name are required.");
+        }
+
+        var emailExists = await _unitOfWork.Repository<User>().Query().AnyAsync(x => x.Email == request.Email && x.Id != id, cancellationToken);
+        if (emailExists)
+        {
+            throw new ApiException(StatusCodes.Status409Conflict, "Email already exists.");
+        }
+
+        user.Email = request.Email.Trim();
+        user.FirstName = request.FirstName.Trim();
+        user.LastName = request.LastName.Trim();
+        user.UpdatedBy = User.Identity?.Name;
+        user.UpdatedDate = DateTime.UtcNow;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(new { message = "User updated successfully." });
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = Permissions.UsersWrite)]
+    public async Task<IActionResult> DeleteUser(int id, CancellationToken cancellationToken)
+    {
+        var user = await _unitOfWork.Repository<User>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "User not found.");
+
+        var currentUserId = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (currentUserId is not null && int.TryParse(currentUserId.Value, out var loggedInUserId) && loggedInUserId == id)
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "You cannot delete your own account.");
+        }
+
+        _unitOfWork.Repository<User>().Remove(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(new { message = "User deleted successfully." });
     }
 }
 
@@ -177,4 +227,11 @@ public class AssignRolesRequest
 public class UpdateUserStatusRequest
 {
     public bool IsActive { get; set; }
+}
+
+public class UpdateUserRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
 }

@@ -5,8 +5,8 @@ using EmployeeManagement.Application.Authentication.Dtos;
 using EmployeeManagement.Application.Authentication.Interfaces;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -22,18 +22,18 @@ public class AuthService : IAuthService
     private const int NotFound = 404;
     private const int Locked = 423;
 
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtOptions _jwtOptions;
     private readonly AuthOptions _authOptions;
 
     public AuthService(
-        ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IPasswordHasher<User> passwordHasher,
         IOptions<JwtOptions> jwtOptions,
         IOptions<AuthOptions> authOptions)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtOptions = jwtOptions.Value;
         _authOptions = authOptions.Value;
@@ -41,11 +41,14 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string clientIp, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.UserNameOrEmail) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            throw new ApiException(BadRequest, "Username/email and password are required.");
+        }
+
         var normalizedValue = request.UserNameOrEmail.Trim().ToUpperInvariant();
 
-        var user = await _context.Users
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
+        var user = await _unitOfWork.Repository<User>().Query()
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
                 .ThenInclude(x => x.RolePermissions)
@@ -79,7 +82,7 @@ public class AuthService : IAuthService
                 user.FailedLoginAttempts = 0;
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             throw new ApiException(Unauthorized, "Invalid username/email or password.");
         }
@@ -105,7 +108,7 @@ public class AuthService : IAuthService
             CreatedByIp = clientIp
         });
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = user.Id,
             EventType = "Login",
@@ -115,9 +118,9 @@ public class AuthService : IAuthService
             IpAddress = clientIp,
             CreatedBy = user.UserName,
             UpdatedBy = user.UserName
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return BuildLoginResponse(user, refreshTokenValue, refreshTokenExpiresAt);
     }
@@ -131,7 +134,7 @@ public class AuthService : IAuthService
 
         var tokenHash = TokenGenerator.HashToken(request.RefreshToken);
 
-        var refreshToken = await _context.RefreshTokens
+        var refreshToken = await _unitOfWork.Repository<RefreshToken>().Query()
             .Include(x => x.User)
                 .ThenInclude(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
@@ -169,7 +172,7 @@ public class AuthService : IAuthService
             CreatedByIp = clientIp
         });
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return BuildLoginResponse(user, newRefreshTokenValue, newRefreshTokenExpiresAt);
     }
@@ -183,7 +186,7 @@ public class AuthService : IAuthService
 
         var tokenHash = TokenGenerator.HashToken(request.RefreshToken);
 
-        var refreshToken = await _context.RefreshTokens
+        var refreshToken = await _unitOfWork.Repository<RefreshToken>().Query()
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
 
@@ -195,7 +198,7 @@ public class AuthService : IAuthService
         refreshToken.RevokedAtUtc = DateTime.UtcNow;
         refreshToken.RevokedByIp = clientIp;
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = refreshToken.UserId,
             EventType = "Logout",
@@ -205,9 +208,9 @@ public class AuthService : IAuthService
             IpAddress = clientIp,
             CreatedBy = refreshToken.User.UserName,
             UpdatedBy = refreshToken.User.UserName
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return AuthOperationResult.Success("Logout completed.");
     }
@@ -215,7 +218,7 @@ public class AuthService : IAuthService
     public async Task<AuthOperationResult> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedValue = request.UserNameOrEmail.Trim().ToUpperInvariant();
-        var user = await _context.Users
+        var user = await _unitOfWork.Repository<User>().Query()
             .FirstOrDefaultAsync(x => x.UserName.ToUpper() == normalizedValue || x.Email.ToUpper() == normalizedValue, cancellationToken);
 
         if (user is null)
@@ -227,7 +230,7 @@ public class AuthService : IAuthService
         user.PasswordResetTokenHash = TokenGenerator.HashToken(resetToken);
         user.PasswordResetTokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(_authOptions.ResetTokenMinutes);
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = user.Id,
             EventType = "ForgotPassword",
@@ -236,9 +239,9 @@ public class AuthService : IAuthService
             Details = "Password reset token generated.",
             CreatedBy = user.UserName,
             UpdatedBy = user.UserName
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return AuthOperationResult.Success("Password reset token generated.", resetToken);
     }
@@ -246,7 +249,7 @@ public class AuthService : IAuthService
     public async Task<AuthOperationResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedValue = request.UserNameOrEmail.Trim().ToUpperInvariant();
-        var user = await _context.Users
+        var user = await _unitOfWork.Repository<User>().Query()
             .FirstOrDefaultAsync(x => x.UserName.ToUpper() == normalizedValue || x.Email.ToUpper() == normalizedValue, cancellationToken);
 
         if (user is null)
@@ -277,7 +280,7 @@ public class AuthService : IAuthService
         user.FailedLoginAttempts = 0;
         user.LockoutEndUtc = null;
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = user.Id,
             EventType = "ResetPassword",
@@ -286,16 +289,16 @@ public class AuthService : IAuthService
             Details = "Password reset completed.",
             CreatedBy = user.UserName,
             UpdatedBy = user.UserName
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return AuthOperationResult.Success("Password has been reset.");
     }
 
     public async Task<AuthOperationResult> ChangePasswordAsync(int userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+        var user = await _unitOfWork.Repository<User>().Query().FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new ApiException(NotFound, "User not found.");
 
         if (!PasswordPolicyValidator.IsValid(request.NewPassword))
@@ -314,7 +317,7 @@ public class AuthService : IAuthService
         user.PasswordChangedAtUtc = DateTime.UtcNow;
         user.PasswordExpiresAtUtc = DateTime.UtcNow.AddDays(_authOptions.PasswordExpiryDays);
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = user.Id,
             EventType = "ChangePassword",
@@ -323,9 +326,9 @@ public class AuthService : IAuthService
             Details = "Password changed by authenticated user.",
             CreatedBy = user.UserName,
             UpdatedBy = user.UserName
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return AuthOperationResult.Success("Password changed successfully.");
     }

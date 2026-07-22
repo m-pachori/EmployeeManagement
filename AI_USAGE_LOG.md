@@ -10,16 +10,16 @@ Last updated: 2026-07-22
 
 | Metric | Count | Notes |
 |---|---:|---|
-| Total AI prompts used | 12 | Includes analysis, planning, documentation, stack decision updates, AI log guidance, requirement coverage refinement, gap review, gap fixes, and Phase 1-6 implementation |
-| Accepted AI suggestions | 8 | Suggestions used without material rework |
-| Modified AI suggestions | 2 | Suggestions adapted to project decisions |
-| Rejected AI suggestions | 0 | No fully rejected suggestions recorded yet |
-| Project documents created | 3 | Requirement analysis, implementation plan, AI usage log |
-| Project documents updated | 9 | Angular 22 decision, requirement coverage refinement, additional requirements alignment, gap fixes, and AI usage updates |
+| Total AI prompts used | 19 | Includes analysis, planning, documentation, stack decision updates, AI log guidance, requirement coverage refinement, gap review, gap fixes, Phase 1-7 implementation, and zoneless change-detection debugging |
+| Accepted AI suggestions | 11 | Suggestions used without material rework |
+| Modified AI suggestions | 3 | Suggestions adapted to project decisions |
+| Rejected AI suggestions | 2 | zone.js/`provideZoneChangeDetection()` and `ApplicationRef.tick()` interceptor approaches, both reverted |
+| Project documents created | 4 | Requirement analysis, implementation plan, AI usage log, root-level README |
+| Project documents updated | 10 | Angular 22 decision, requirement coverage refinement, additional requirements alignment, gap fixes, and AI usage updates |
 | Backend projects scaffolded | 5 | API, Application, Domain, Infrastructure, Tests |
 | Frontend projects scaffolded | 1 | Angular 22 client app |
-| Build validations performed | 8 | Multiple backend solution builds and Angular build validations, all passing |
-| Test validations performed | 2 | Authentication and password policy unit tests executed and passing |
+| Build validations performed | 10 | Multiple backend solution builds and Angular build validations, all passing |
+| Test validations performed | 3 | Authentication and password policy unit tests executed and passing, including a re-run after the code-review gap fixes |
 
 ## Prompts Used
 
@@ -37,6 +37,13 @@ Last updated: 2026-07-22
 | P10 | 2026-07-22 | Implementation | Start Phase 1 implementation: scaffold .NET 8 solution (API/Application/Domain/Infrastructure/Tests), configure Serilog/exception middleware/DI/health checks/versioning/rate limiting/caching, add Docker support, and scaffold the Angular 22 client. | GitHub Copilot / GPT-5.4 |
 | P11 | 2026-07-22 | Implementation | Implement Phase 2 and Phase 3: database schema entities/configurations/migration/SQL script, runtime seeding for permissions/roles/admin user, JWT auth with refresh tokens, lockout and password policy flows, authorization policies, and auth unit tests. | GitHub Copilot / GPT-5.4 |
 | P12 | 2026-07-22 | Implementation | Start Phase 4, 5, and 6 backend implementation: employees/departments/users/roles CRUD and policy guards, dashboard/settings/audit endpoints, and report exports (CSV/Excel/PDF baseline) with successful build/test validation. | GitHub Copilot / GPT-5.4 |
+| P13 | 2026-07-22 | Implementation | Implement Phase 7 Angular 22 feature modules (auth, dashboard, employees, departments, users, roles, settings, audit, reports) wired to the backend API. | GitHub Copilot / Claude Sonnet 5 |
+| P14 | 2026-07-22 | Debugging | Diagnose why all list/grid pages showed "Loading..." indefinitely despite the API returning correct data. | GitHub Copilot / Claude Sonnet 5 |
+| P15 | 2026-07-22 | Debugging | Attempt fix via zone.js + `provideZoneChangeDetection()` to restore automatic change detection. | GitHub Copilot / Claude Sonnet 5 |
+| P16 | 2026-07-22 | Debugging | Attempt fix via a global HTTP interceptor calling `ApplicationRef.tick()` after responses. | GitHub Copilot / Claude Sonnet 5 |
+| P17 | 2026-07-22 | Debugging | Apply `ChangeDetectorRef.markForCheck()` in each affected component after async state mutation; verify via Playwright browser automation. | GitHub Copilot / Claude Sonnet 5 |
+| P18 | 2026-07-22 | Review | Perform a code, technical, and functional review of the full codebase against the assessment document and report what is missing. | GitHub Copilot / Claude Sonnet 5 |
+| P19 | 2026-07-22 | Implementation | Fix gaps identified in P18: Employee Designation/Salary/Manager fields and validations, missing Users/Roles endpoints, frontend photo upload/pagination/forgot-password UI, root README, and this AI usage log. | GitHub Copilot / Claude Sonnet 5 |
 
 ## Accepted AI Suggestions
 
@@ -50,6 +57,9 @@ Last updated: 2026-07-22
 | P10 | Scaffolded layered .NET 8 solution (API, Application, Domain, Infrastructure, Tests) with project references matching the planned architecture; implemented generic repository/unit-of-work pattern, global exception middleware, Serilog, API versioning, rate limiting, response caching, and EF Core health check; scaffolded Angular 22 client via Angular CLI. | Matched the Phase 1 implementation plan exactly and both backend and frontend build successfully. | Working project skeleton ready for Phase 2 (database design) |
 | P11 | Implemented normalized EF Core schema for users/roles/permissions/refresh tokens/employees/departments/settings/audit logs/documents with constraints and indexes, generated migration and SQL script, and implemented JWT login/refresh/logout/forgot-reset/change password with lockout and password expiry checks plus role/permission authorization policies and tests. | Directly aligned to Phase 2 and Phase 3 implementation requirements with runnable and validated backend behavior. | Database and authentication foundation completed for remaining feature modules |
 | P12 | Implemented Phase 4-6 backend baseline APIs for Employee, Department, User, Role, Dashboard, Settings, Audit, and Reports modules with authorization policies, pagination/filtering/sorting, safe department deletion, and export endpoints. | Established runnable business-module endpoints aligned to planned module sequence and cross-cutting authorization requirements. | Working API baseline for frontend integration and further business-rule refinement |
+| P13 | Implemented Angular 22 standalone feature modules for all business areas, wired to backend APIs via a shared ApiService/AuthService. | Matched the Phase 7 implementation plan and produced a working end-to-end UI. | Full-stack feature parity reached |
+| P17 | Injected `ChangeDetectorRef` and called `markForCheck()` after every async state mutation across 9 components. | Confirmed via Angular DevTools (`ng.applyChanges`) that this was a change-detection issue, not a data issue; fix verified live for every affected page. | Resolved the app-wide "stuck Loading..." bug |
+| P19 | Added Designation/Salary/Manager fields to the Employee entity/DB/API/UI (with EF Core migration + SQL script), added missing Users PUT/DELETE and Roles DELETE endpoints, added phone/joining-date/salary validation, added frontend pagination, employee photo upload UI, and forgot/change-password pages. | Directly closed the gaps identified in the P18 review against the assessment document. | Closed the majority of the identified functional and technical gaps |
 
 ## Modified AI Suggestions
 
@@ -58,16 +68,14 @@ Last updated: 2026-07-22
 | P1 | Suggested frontend stack as Angular 18+ or React based on the assessment brief. | Updated the plan to Angular 22 only. | Final project technology decision was Angular 22. |
 | P2 | Created one combined Markdown document for requirements and implementation plan. | Reworked into two separate files. | Better document separation and easier review. |
 | P10 | Initially added `Asp.Versioning.Mvc`, `Asp.Versioning.Mvc.ApiExplorer`, and EF Core packages without a version constraint. | Pinned all backend packages to net8.0-compatible major versions (8.x) after NU1202 errors surfaced. | The installed .NET 10 SDK on this machine caused NuGet to resolve the newest (net10.0-only) package versions by default; explicit version pinning was required for net8.0 compatibility. |
+| P19 | Initially considered a hard delete for Users/Roles with no safety checks. | Added guards instead: block deleting your own user account, and block deleting a Role that still has users assigned (mirroring the existing safe-department-deletion pattern already in the codebase). | Prevents accidental account lockout/orphaned data and stays consistent with existing codebase conventions. |
 
 ## Rejected AI Suggestions
 
-No fully rejected AI suggestions have been recorded yet.
-
-When a suggestion is rejected later, record it in the format below:
-
 | Ref | Rejected Suggestion | Reason Rejected |
 |---|---|---|
-| Example | Suggested client-side-only security checks for access control. | Rejected because authorization must be enforced on the API side. |
+| P15 | Install zone.js and call `provideZoneChangeDetection()` to restore automatic change detection under Angular 22's zoneless default (fix for the app-wide "stuck Loading..." bug). | Rejected after confirming zone.js's monkey-patches of XHR/fetch never actually took effect under the Vite/esbuild-based dev server (`XMLHttpRequest.prototype.send.toString()` still showed native code); did not fix the rendering bug, so the dependency and config change were reverted. |
+| P16 | Add a global HTTP interceptor that calls `ApplicationRef.tick()` after every response to force re-render (second attempted fix for the same bug). | Rejected after confirming via console logging that `tick()` was being invoked but does not force-check components Angular hasn't marked dirty in zoneless mode; the bug persisted, so the interceptor file was deleted. |
 
 ## Validation Performed Before Accepting AI-Generated Output
 
@@ -86,6 +94,9 @@ The following validation was performed on AI-generated project documentation and
 - Confirmed package versions were compatible with the target net8.0 framework, since default package resolution picked net10.0-only versions on this machine.
 - Executed backend unit tests for authentication and password policy scenarios and confirmed passing results.
 - Rebuilt solution and re-ran backend tests after Phase 4-6 API module additions; build succeeded and tests passed.
+- Used Playwright browser automation to log in and visually confirm each fixed page rendered data correctly, and used `window.ng.getComponent`/`ng.applyChanges` in browser devtools to distinguish a change-detection bug from a data/API bug before selecting a fix approach (P14-P17).
+- Rebuilt the backend and re-ran all unit tests (10/10 passing), and rebuilt the Angular client, after the P19 gap-fix changes (Employee entity fields, new API endpoints, new frontend pages) to confirm no regressions.
+- Generated and reviewed the EF Core migration and its companion SQL script for the new Employee fields/index before treating the P19 change as complete.
 
 ## Project Artifacts Influenced by AI
 

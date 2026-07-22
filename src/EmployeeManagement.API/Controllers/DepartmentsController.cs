@@ -1,8 +1,8 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
 using EmployeeManagement.Application.Common.Exceptions;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
-using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,18 +15,18 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class DepartmentsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public DepartmentsController(ApplicationDbContext context)
+    public DepartmentsController(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     [HttpGet]
     [Authorize(Policy = Permissions.DepartmentsRead)]
     public async Task<IActionResult> GetDepartments(CancellationToken cancellationToken)
     {
-        var departments = await _context.Departments
+        var departments = await _unitOfWork.Repository<Department>().Query()
             .AsNoTracking()
             .OrderBy(x => x.Name)
             .Select(x => new
@@ -47,7 +47,7 @@ public class DepartmentsController : ControllerBase
     [Authorize(Policy = Permissions.DepartmentsRead)]
     public async Task<IActionResult> GetDepartmentById(int id, CancellationToken cancellationToken)
     {
-        var department = await _context.Departments
+        var department = await _unitOfWork.Repository<Department>().Query()
             .AsNoTracking()
             .Where(x => x.Id == id)
             .Select(x => new
@@ -85,8 +85,8 @@ public class DepartmentsController : ControllerBase
             UpdatedBy = User.Identity?.Name
         };
 
-        _context.Departments.Add(department);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<Department>().AddAsync(department, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetDepartmentById), new { id = department.Id, version = "1" }, department.Id);
     }
@@ -95,7 +95,7 @@ public class DepartmentsController : ControllerBase
     [Authorize(Policy = Permissions.DepartmentsWrite)]
     public async Task<IActionResult> UpdateDepartment(int id, [FromBody] UpsertDepartmentRequest request, CancellationToken cancellationToken)
     {
-        var department = await _context.Departments.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var department = await _unitOfWork.Repository<Department>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Department not found.");
 
         await ValidateDepartmentAsync(request, cancellationToken, id);
@@ -107,7 +107,7 @@ public class DepartmentsController : ControllerBase
         department.UpdatedBy = User.Identity?.Name;
         department.UpdatedDate = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Department updated successfully." });
     }
 
@@ -115,18 +115,18 @@ public class DepartmentsController : ControllerBase
     [Authorize(Policy = Permissions.DepartmentsWrite)]
     public async Task<IActionResult> DeleteDepartment(int id, CancellationToken cancellationToken)
     {
-        var department = await _context.Departments.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var department = await _unitOfWork.Repository<Department>().Query().FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Department not found.");
 
-        var hasEmployees = await _context.Employees.AnyAsync(x => x.DepartmentId == id, cancellationToken);
+        var hasEmployees = await _unitOfWork.Repository<Employee>().Query().AnyAsync(x => x.DepartmentId == id, cancellationToken);
         if (hasEmployees)
         {
             throw new ApiException(StatusCodes.Status409Conflict,
                 "Department cannot be deleted because employees are assigned to it.");
         }
 
-        _context.Departments.Remove(department);
-        await _context.SaveChangesAsync(cancellationToken);
+        _unitOfWork.Repository<Department>().Remove(department);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Ok(new { message = "Department deleted successfully." });
     }
@@ -138,14 +138,14 @@ public class DepartmentsController : ControllerBase
             throw new ApiException(StatusCodes.Status400BadRequest, "Department name and code are required.");
         }
 
-        var duplicateName = await _context.Departments
+        var duplicateName = await _unitOfWork.Repository<Department>().Query()
             .AnyAsync(x => x.Name == request.Name && x.Id != existingDepartmentId, cancellationToken);
         if (duplicateName)
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Department name already exists.");
         }
 
-        var duplicateCode = await _context.Departments
+        var duplicateCode = await _unitOfWork.Repository<Department>().Query()
             .AnyAsync(x => x.Code == request.Code && x.Id != existingDepartmentId, cancellationToken);
         if (duplicateCode)
         {

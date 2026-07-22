@@ -1,5 +1,3 @@
-using EmployeeManagement.Domain.Common;
-
 namespace EmployeeManagement.Application.Common.Interfaces;
 
 /// <summary>
@@ -7,7 +5,7 @@ namespace EmployeeManagement.Application.Common.Interfaces;
 /// </summary>
 public interface IUnitOfWork
 {
-    IRepository<T> Repository<T>() where T : BaseEntity;
+    IRepository<T> Repository<T>() where T : class;
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

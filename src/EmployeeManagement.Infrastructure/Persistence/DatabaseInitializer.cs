@@ -1,8 +1,10 @@
 using EmployeeManagement.Application.Common.Constants;
+using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
 using EmployeeManagement.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -10,20 +12,28 @@ namespace EmployeeManagement.Infrastructure.Persistence;
 
 public class DatabaseInitializer
 {
+    private const string DefaultAdminPassword = "Admin@123";
+
     private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly AuthOptions _authOptions;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<DatabaseInitializer> _logger;
 
     public DatabaseInitializer(
         ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IPasswordHasher<User> passwordHasher,
         IOptions<AuthOptions> authOptions,
+        IConfiguration configuration,
         ILogger<DatabaseInitializer> logger)
     {
         _context = context;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _authOptions = authOptions.Value;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -38,7 +48,7 @@ public class DatabaseInitializer
 
     private async Task SeedPermissionsAsync(CancellationToken cancellationToken)
     {
-        if (await _context.Permissions.AnyAsync(cancellationToken))
+        if (await _unitOfWork.Repository<Permission>().Query().AnyAsync(cancellationToken))
         {
             return;
         }
@@ -62,13 +72,13 @@ public class DatabaseInitializer
             })
             .ToList();
 
-        _context.Permissions.AddRange(permissions);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<Permission>().AddRangeAsync(permissions, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SeedRolesAsync(CancellationToken cancellationToken)
     {
-        if (await _context.Roles.AnyAsync(cancellationToken))
+        if (await _unitOfWork.Repository<Role>().Query().AnyAsync(cancellationToken))
         {
             return;
         }
@@ -81,11 +91,11 @@ public class DatabaseInitializer
             new Role { Name = DefaultRoles.Employee, Description = "Standard employee", CreatedBy = "system", UpdatedBy = "system" }
         };
 
-        _context.Roles.AddRange(roles);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<Role>().AddRangeAsync(roles, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var adminRole = roles.Single(x => x.Name == DefaultRoles.Admin);
-        var allPermissions = await _context.Permissions.ToListAsync(cancellationToken);
+        var allPermissions = await _unitOfWork.Repository<Permission>().GetAllAsync(cancellationToken);
 
         var rolePermissions = allPermissions.Select(permission => new RolePermission
         {
@@ -93,13 +103,13 @@ public class DatabaseInitializer
             PermissionId = permission.Id
         });
 
-        _context.RolePermissions.AddRange(rolePermissions);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<RolePermission>().AddRangeAsync(rolePermissions, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SeedAdminUserAsync(CancellationToken cancellationToken)
     {
-        if (await _context.Users.AnyAsync(x => x.UserName == "admin", cancellationToken))
+        if (await _unitOfWork.Repository<User>().Query().AnyAsync(x => x.UserName == "admin", cancellationToken))
         {
             return;
         }
@@ -117,15 +127,15 @@ public class DatabaseInitializer
             UpdatedBy = "system"
         };
 
-        admin.PasswordHash = _passwordHasher.HashPassword(admin, "Admin@123");
+        admin.PasswordHash = _passwordHasher.HashPassword(admin, GetAdminSeedPassword());
 
-        _context.Users.Add(admin);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.Repository<User>().AddAsync(admin, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var adminRole = await _context.Roles.SingleAsync(x => x.Name == DefaultRoles.Admin, cancellationToken);
-        _context.UserRoles.Add(new UserRole { UserId = admin.Id, RoleId = adminRole.Id });
+        var adminRole = await _unitOfWork.Repository<Role>().Query().SingleAsync(x => x.Name == DefaultRoles.Admin, cancellationToken);
+        await _unitOfWork.Repository<UserRole>().AddAsync(new UserRole { UserId = admin.Id, RoleId = adminRole.Id }, cancellationToken);
 
-        _context.AuditLogs.Add(new AuditLog
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
         {
             UserId = admin.Id,
             EventType = "SeedAdmin",
@@ -134,9 +144,25 @@ public class DatabaseInitializer
             Details = "Default admin user seeded.",
             CreatedBy = "system",
             UpdatedBy = "system"
-        });
+        }, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Default admin user seeded with username '{Username}'.", admin.UserName);
+    }
+
+    private string GetAdminSeedPassword()
+    {
+        var configuredPassword = _configuration["Seed:AdminPassword"];
+        if (!string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            return configuredPassword;
+        }
+
+        _logger.LogWarning(
+            "No 'Seed:AdminPassword' configuration value was supplied; falling back to the default seed password. " +
+            "Set the Seed__AdminPassword environment variable (or Seed:AdminPassword configuration key) to a strong " +
+            "value before deploying to any shared or production environment, and change the admin password after first login.");
+
+        return DefaultAdminPassword;
     }
 }

@@ -4,7 +4,7 @@ services:
     container_name: employeemanagement-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Your_password123"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:-Your_password123}"
     ports:
       - "1433:1433"
     volumes:
@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=EmployeeManagementDb;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=EmployeeManagementDb;User Id=sa;Password=${SA_PASSWORD:-Your_password123};TrustServerCertificate=True;"
     ports:
       - "8080:8080"
 

@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using EmployeeManagement.Application.Common.Interfaces;
-using EmployeeManagement.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace EmployeeManagement.Infrastructure.Persistence;
@@ -8,7 +7,7 @@ namespace EmployeeManagement.Infrastructure.Persistence;
 /// <summary>
 /// EF Core implementation of the generic repository pattern.
 /// </summary>
-public class Repository<T> : IRepository<T> where T : BaseEntity
+public class Repository<T> : IRepository<T> where T : class
 {
     private readonly ApplicationDbContext _context;
     private readonly DbSet<T> _dbSet;
@@ -44,6 +43,11 @@ public class Repository<T> : IRepository<T> where T : BaseEntity
         await _dbSet.AddAsync(entity, cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
+    {
+        await _dbSet.AddRangeAsync(entities, cancellationToken);
+    }
+
     public void Update(T entity)
     {
         _dbSet.Update(entity);
@@ -52,5 +56,10 @@ public class Repository<T> : IRepository<T> where T : BaseEntity
     public void Remove(T entity)
     {
         _dbSet.Remove(entity);
+    }
+
+    public void RemoveRange(IEnumerable<T> entities)
+    {
+        _dbSet.RemoveRange(entities);
     }
 }

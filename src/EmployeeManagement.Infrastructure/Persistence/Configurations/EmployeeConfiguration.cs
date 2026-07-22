@@ -34,6 +34,12 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(x => x.PhotoUrl)
             .HasMaxLength(500);
 
+        builder.Property(x => x.Designation)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.Salary)
+            .HasColumnType("decimal(18,2)");
+
         builder.Property(x => x.CreatedBy)
             .HasMaxLength(100);
 
@@ -45,9 +51,16 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasForeignKey(x => x.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.Manager)
+            .WithMany()
+            .HasForeignKey(x => x.ManagerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => x.EmployeeCode).IsUnique();
         builder.HasIndex(x => x.Email).IsUnique();
         builder.HasIndex(x => x.DepartmentId);
         builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.DepartmentId, x.Status });
+        builder.HasIndex(x => x.ManagerId);
     }
 }

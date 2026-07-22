@@ -17,6 +17,10 @@ public class Employee : BaseEntity
 
     public string? PhotoUrl { get; set; }
 
+    public string? Designation { get; set; }
+
+    public decimal? Salary { get; set; }
+
     public DateTime DateOfJoining { get; set; }
 
     public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
@@ -24,6 +28,10 @@ public class Employee : BaseEntity
     public int DepartmentId { get; set; }
 
     public Department Department { get; set; } = null!;
+
+    public int? ManagerId { get; set; }
+
+    public Employee? Manager { get; set; }
 
     public ICollection<EmployeeDocument> Documents { get; set; } = new List<EmployeeDocument>();
 }

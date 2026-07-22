@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
-using EmployeeManagement.Infrastructure.Persistence;
+using EmployeeManagement.Application.Common.Interfaces;
+using EmployeeManagement.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,11 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class AuditController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public AuditController(ApplicationDbContext context)
+    public AuditController(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     [HttpGet("logs")]
@@ -33,7 +34,7 @@ public class AuditController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = _context.AuditLogs.AsNoTracking().AsQueryable();
+        var query = _unitOfWork.Repository<AuditLog>().Query().AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(eventType))
         {

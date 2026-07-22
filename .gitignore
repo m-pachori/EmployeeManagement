@@ -1,4 +1,6 @@
 .vs/
+.env
+*.csproj.user
 .vs/EmployeeManagement/config/applicationhost.config
 .vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/CodeChunks.db
 .vs/EmployeeManagement/CopilotIndices/18.8.1083.22234/CodeChunks.db-shm

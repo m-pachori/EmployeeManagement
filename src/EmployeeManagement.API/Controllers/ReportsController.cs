@@ -1,7 +1,8 @@
 using System.Text;
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
-using EmployeeManagement.Infrastructure.Persistence;
+using EmployeeManagement.Application.Common.Interfaces;
+using EmployeeManagement.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,17 +15,17 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize(Policy = Permissions.ReportsRead)]
 public class ReportsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ReportsController(ApplicationDbContext context)
+    public ReportsController(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     [HttpGet("employees")]
     public async Task<IActionResult> EmployeeReport([FromQuery] string format = "csv", CancellationToken cancellationToken = default)
     {
-        var rows = await _context.Employees
+        var rows = await _unitOfWork.Repository<Employee>().Query()
             .AsNoTracking()
             .Include(x => x.Department)
             .OrderBy(x => x.EmployeeCode)
@@ -50,7 +51,7 @@ public class ReportsController : ControllerBase
     [HttpGet("departments")]
     public async Task<IActionResult> DepartmentReport([FromQuery] string format = "csv", CancellationToken cancellationToken = default)
     {
-        var rows = await _context.Departments
+        var rows = await _unitOfWork.Repository<Department>().Query()
             .AsNoTracking()
             .OrderBy(x => x.Name)
             .Select(x => new[]
@@ -72,7 +73,7 @@ public class ReportsController : ControllerBase
     [HttpGet("users")]
     public async Task<IActionResult> UserReport([FromQuery] string format = "csv", CancellationToken cancellationToken = default)
     {
-        var rows = await _context.Users
+        var rows = await _unitOfWork.Repository<User>().Query()
             .AsNoTracking()
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -97,7 +98,7 @@ public class ReportsController : ControllerBase
     [HttpGet("login-activity")]
     public async Task<IActionResult> LoginActivityReport([FromQuery] string format = "csv", CancellationToken cancellationToken = default)
     {
-        var rows = await _context.AuditLogs
+        var rows = await _unitOfWork.Repository<AuditLog>().Query()
             .AsNoTracking()
             .Where(x => x.EventType == "Login" || x.EventType == "Logout")
             .OrderByDescending(x => x.CreatedDate)

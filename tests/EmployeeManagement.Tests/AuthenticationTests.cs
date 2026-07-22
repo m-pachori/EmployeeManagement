@@ -134,7 +134,7 @@ public class AuthenticationTests
     private static AuthService CreateAuthService(ApplicationDbContext context, PasswordHasher<User> passwordHasher, AuthOptions? authOptions = null)
     {
         return new AuthService(
-            context,
+            new UnitOfWork(context),
             passwordHasher,
             Options.Create(new JwtOptions
             {

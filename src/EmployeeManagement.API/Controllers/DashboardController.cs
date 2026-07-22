@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using EmployeeManagement.Application.Common.Constants;
-using EmployeeManagement.Infrastructure.Persistence;
+using EmployeeManagement.Application.Common.Interfaces;
+using EmployeeManagement.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,12 +15,12 @@ namespace EmployeeManagement.API.Controllers;
 [Authorize]
 public class DashboardController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IMemoryCache _memoryCache;
 
-    public DashboardController(ApplicationDbContext context, IMemoryCache memoryCache)
+    public DashboardController(IUnitOfWork unitOfWork, IMemoryCache memoryCache)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _memoryCache = memoryCache;
     }
 
@@ -32,11 +33,11 @@ public class DashboardController : ControllerBase
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
 
-            var employeeCount = await _context.Employees.CountAsync(cancellationToken);
-            var departmentCount = await _context.Departments.CountAsync(cancellationToken);
-            var activeUserCount = await _context.Users.CountAsync(x => x.IsActive, cancellationToken);
+            var employeeCount = await _unitOfWork.Repository<Employee>().Query().CountAsync(cancellationToken);
+            var departmentCount = await _unitOfWork.Repository<Department>().Query().CountAsync(cancellationToken);
+            var activeUserCount = await _unitOfWork.Repository<User>().Query().CountAsync(x => x.IsActive, cancellationToken);
 
-            var lastLogins = await _context.Users
+            var lastLogins = await _unitOfWork.Repository<User>().Query()
                 .AsNoTracking()
                 .Where(x => x.LastLoginAtUtc.HasValue)
                 .OrderByDescending(x => x.LastLoginAtUtc)
@@ -49,7 +50,7 @@ public class DashboardController : ControllerBase
                 })
                 .ToListAsync(cancellationToken);
 
-            var recentActivity = await _context.AuditLogs
+            var recentActivity = await _unitOfWork.Repository<AuditLog>().Query()
                 .AsNoTracking()
                 .OrderByDescending(x => x.CreatedDate)
                 .Take(10)

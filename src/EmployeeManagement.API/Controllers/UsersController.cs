@@ -107,6 +107,16 @@ public class UsersController : ControllerBase
         user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
 
         await _unitOfWork.Repository<User>().AddAsync(user, cancellationToken);
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "UserCreate",
+            EntityName = nameof(User),
+            Details = $"Created user '{user.UserName}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (roles.Count > 0)
@@ -140,6 +150,18 @@ public class UsersController : ControllerBase
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "UserRolesAssign",
+            EntityName = nameof(User),
+            EntityId = user.Id.ToString(),
+            Details = $"Assigned {roles.Count} role(s) to user '{user.UserName}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Roles assigned successfully." });
     }
@@ -154,6 +176,18 @@ public class UsersController : ControllerBase
         user.IsActive = request.IsActive;
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
+
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "UserStatusUpdate",
+            EntityName = nameof(User),
+            EntityId = user.Id.ToString(),
+            Details = $"Set user '{user.UserName}' status to {(request.IsActive ? "Active" : "Inactive")}.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User status updated successfully." });
@@ -185,6 +219,18 @@ public class UsersController : ControllerBase
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "UserUpdate",
+            EntityName = nameof(User),
+            EntityId = user.Id.ToString(),
+            Details = $"Updated user '{user.UserName}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User updated successfully." });
     }
@@ -203,8 +249,26 @@ public class UsersController : ControllerBase
         }
 
         _unitOfWork.Repository<User>().Remove(user);
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "UserDelete",
+            EntityName = nameof(User),
+            EntityId = user.Id.ToString(),
+            Details = $"Deleted user '{user.UserName}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User deleted successfully." });
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        return claim is not null && int.TryParse(claim.Value, out var userId) ? userId : null;
     }
 }
 

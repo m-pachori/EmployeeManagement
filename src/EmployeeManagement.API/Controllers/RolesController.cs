@@ -66,6 +66,17 @@ public class RolesController : ControllerBase
         };
 
         await _unitOfWork.Repository<Role>().AddAsync(role, cancellationToken);
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "RoleCreate",
+            EntityName = nameof(Role),
+            Details = $"Created role '{role.Name}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetRoles), new { version = "1" }, role.Id);
@@ -94,6 +105,18 @@ public class RolesController : ControllerBase
         role.UpdatedBy = User.Identity?.Name;
         role.UpdatedDate = DateTime.UtcNow;
 
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "RoleUpdate",
+            EntityName = nameof(Role),
+            EntityId = role.Id.ToString(),
+            Details = $"Updated role '{role.Name}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Role updated successfully." });
     }
@@ -115,6 +138,18 @@ public class RolesController : ControllerBase
         var mappings = await _unitOfWork.Repository<RolePermission>().Query().Where(x => x.RoleId == id).ToListAsync(cancellationToken);
         _unitOfWork.Repository<RolePermission>().RemoveRange(mappings);
         _unitOfWork.Repository<Role>().Remove(role);
+
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "RoleDelete",
+            EntityName = nameof(Role),
+            EntityId = role.Id.ToString(),
+            Details = $"Deleted role '{role.Name}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Role deleted successfully." });
@@ -164,8 +199,26 @@ public class RolesController : ControllerBase
         role.UpdatedBy = User.Identity?.Name;
         role.UpdatedDate = DateTime.UtcNow;
 
+        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            EventType = "RolePermissionsAssign",
+            EntityName = nameof(Role),
+            EntityId = role.Id.ToString(),
+            Details = $"Assigned {permissions.Count} permission(s) to role '{role.Name}'.",
+            CreatedBy = User.Identity?.Name,
+            UpdatedBy = User.Identity?.Name,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        }, cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Permissions assigned successfully." });
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        return claim is not null && int.TryParse(claim.Value, out var userId) ? userId : null;
     }
 }
 

@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../shared/validation/password-policy';
 
 @Component({
   selector: 'app-users',
@@ -15,35 +17,31 @@ import { ApiService } from '../../core/services/api.service';
       <label>
         Username
         <input formControlName="userName" placeholder="Username" />
-        <span class="error" *ngIf="hasError('userName', 'required')">Username is required.</span>
+        <span class="error" *ngIf="fieldError('userName', 'Username') as message">{{ message }}</span>
       </label>
 
       <label>
         Email
         <input formControlName="email" placeholder="Email" />
-        <span class="error" *ngIf="hasError('email', 'required')">Email is required.</span>
-        <span class="error" *ngIf="hasError('email', 'email')">Enter a valid email address.</span>
+        <span class="error" *ngIf="fieldError('email', 'Email') as message">{{ message }}</span>
       </label>
 
       <label>
         First Name
         <input formControlName="firstName" placeholder="First Name" />
-        <span class="error" *ngIf="hasError('firstName', 'required')">First name is required.</span>
+        <span class="error" *ngIf="fieldError('firstName', 'First name') as message">{{ message }}</span>
       </label>
 
       <label>
         Last Name
         <input formControlName="lastName" placeholder="Last Name" />
-        <span class="error" *ngIf="hasError('lastName', 'required')">Last name is required.</span>
+        <span class="error" *ngIf="fieldError('lastName', 'Last name') as message">{{ message }}</span>
       </label>
 
       <label>
         Password
         <input formControlName="password" placeholder="Password" type="password" />
-        <span class="error" *ngIf="hasError('password', 'required')">Password is required.</span>
-        <span class="error" *ngIf="hasError('password', 'pattern')">
-          Password must be 8+ chars with uppercase, lowercase, number, and special character.
-        </span>
+        <span class="error" *ngIf="fieldError('password', 'Password', passwordPolicyMessage) as message">{{ message }}</span>
       </label>
 
       <label>
@@ -89,6 +87,7 @@ import { ApiService } from '../../core/services/api.service';
 })
 export class UsersComponent implements OnInit {
   readonly form;
+  readonly passwordPolicyMessage = PASSWORD_POLICY_MESSAGE;
 
   items: any[] = [];
   isLoading = false;
@@ -106,7 +105,7 @@ export class UsersComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       firstName: ['', Validators.required],
       lastName: ['', Validators.required],
-      password: ['', [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/)]],
+      password: ['', [Validators.required, Validators.pattern(PASSWORD_PATTERN)]],
       roleIdsCsv: ['']
     });
   }
@@ -189,13 +188,8 @@ export class UsersComponent implements OnInit {
       });
   }
 
-  hasError(controlName: string, errorName: string): boolean {
-    const control = this.form.get(controlName);
-    if (!control) {
-      return false;
-    }
-
-    return control.touched && control.hasError(errorName);
+  fieldError(controlName: string, label: string, patternMessage?: string): string {
+    return resolveFieldError(this.form.get(controlName), label, patternMessage);
   }
 
   private extractErrorMessage(error: any, fallback: string): string {

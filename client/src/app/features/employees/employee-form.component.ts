@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
 
 @Component({
   selector: 'app-employee-form',
@@ -11,14 +12,28 @@ import { ApiService } from '../../core/services/api.service';
   template: `
     <h2>{{ isEdit ? 'Edit Employee' : 'New Employee' }}</h2>
     <form [formGroup]="form" (ngSubmit)="submit()" class="grid">
-      <label>Employee Code<input formControlName="employeeCode" /></label>
-      <label>First Name<input formControlName="firstName" /></label>
-      <label>Last Name<input formControlName="lastName" /></label>
-      <label>Email<input formControlName="email" /></label>
-      <label>Phone<input formControlName="phoneNumber" /></label>
+      <label>Employee Code<input formControlName="employeeCode" />
+        <span class="field-error" *ngIf="fieldError('employeeCode', 'Employee code') as message">{{ message }}</span>
+      </label>
+      <label>First Name<input formControlName="firstName" />
+        <span class="field-error" *ngIf="fieldError('firstName', 'First name') as message">{{ message }}</span>
+      </label>
+      <label>Last Name<input formControlName="lastName" />
+        <span class="field-error" *ngIf="fieldError('lastName', 'Last name') as message">{{ message }}</span>
+      </label>
+      <label>Email<input formControlName="email" />
+        <span class="field-error" *ngIf="fieldError('email', 'Email') as message">{{ message }}</span>
+      </label>
+      <label>Phone<input formControlName="phoneNumber" />
+        <span class="field-error" *ngIf="fieldError('phoneNumber', 'Phone', 'Enter a valid phone number.') as message">{{ message }}</span>
+      </label>
       <label>Designation<input formControlName="designation" /></label>
-      <label>Salary<input type="number" min="0" step="0.01" formControlName="salary" /></label>
-      <label>Date Of Joining<input type="date" formControlName="dateOfJoining" /></label>
+      <label>Salary<input type="number" min="0" step="0.01" formControlName="salary" />
+        <span class="field-error" *ngIf="fieldError('salary', 'Salary') as message">{{ message }}</span>
+      </label>
+      <label>Date Of Joining<input type="date" formControlName="dateOfJoining" />
+        <span class="field-error" *ngIf="fieldError('dateOfJoining', 'Date of joining') as message">{{ message }}</span>
+      </label>
       <label>Status
         <select formControlName="status">
           <option value="1">Active</option>
@@ -32,6 +47,7 @@ import { ApiService } from '../../core/services/api.service';
           <option [ngValue]="0">Select</option>
           <option *ngFor="let d of departments" [ngValue]="d.id">{{ d.name }}</option>
         </select>
+        <span class="field-error" *ngIf="fieldError('departmentId', 'Department') as message">{{ message }}</span>
       </label>
       <label>Manager
         <select formControlName="managerId">
@@ -59,6 +75,7 @@ import { ApiService } from '../../core/services/api.service';
     button { width: fit-content; border: 0; background: #1f5e96; color: #fff; padding: 0.5rem 0.8rem; border-radius: 0.35rem; }
     .error { color: #c12828; }
     .success { color: #1a7a3d; }
+    .field-error { color: #c12828; font-size: 0.78rem; }
     .photo-section { margin-top: 1.25rem; display: grid; gap: 0.5rem; max-width: 320px; }
     .photo-preview { width: 120px; height: 120px; object-fit: cover; border-radius: 0.5rem; border: 1px solid #c6d3e0; }
   `
@@ -86,15 +103,19 @@ export class EmployeeFormComponent implements OnInit {
       employeeCode: ['', Validators.required],
       firstName: ['', Validators.required],
       lastName: ['', Validators.required],
-      email: ['', Validators.required],
-      phoneNumber: [''],
+      email: ['', [Validators.required, Validators.email]],
+      phoneNumber: ['', Validators.pattern(/^[0-9+\-\s()]{7,20}$/)],
       designation: [''],
-      salary: [null],
+      salary: [null, Validators.min(0)],
       dateOfJoining: ['', Validators.required],
       status: [1, Validators.required],
-      departmentId: [0, Validators.required],
+      departmentId: [0, [Validators.required, Validators.min(1)]],
       managerId: [null]
     });
+  }
+
+  fieldError(controlName: string, label: string, patternMessage?: string): string {
+    return resolveFieldError(this.form.get(controlName), label, patternMessage);
   }
 
   ngOnInit(): void {

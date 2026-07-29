@@ -3,6 +3,8 @@ import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../shared/validation/password-policy';
 
 @Component({
   selector: 'app-forgot-password',
@@ -16,6 +18,7 @@ import { AuthService } from '../../core/services/auth.service';
         <label>
           Username or Email
           <input formControlName="userNameOrEmail" />
+          <span class="field-error" *ngIf="requestFieldError('userNameOrEmail', 'Username or email') as message">{{ message }}</span>
         </label>
         <button type="submit" [disabled]="isLoading">{{ isLoading ? 'Requesting...' : 'Request Reset Token' }}</button>
         <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -28,10 +31,12 @@ import { AuthService } from '../../core/services/auth.service';
         <label>
           Reset Token
           <input formControlName="resetToken" />
+          <span class="field-error" *ngIf="resetFieldError('resetToken', 'Reset token') as message">{{ message }}</span>
         </label>
         <label>
           New Password
           <input type="password" formControlName="newPassword" />
+          <span class="field-error" *ngIf="resetFieldError('newPassword', 'New password', passwordPolicyMessage) as message">{{ message }}</span>
         </label>
         <button type="submit" [disabled]="isLoading">{{ isLoading ? 'Resetting...' : 'Reset Password' }}</button>
         <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -50,6 +55,7 @@ import { AuthService } from '../../core/services/auth.service';
     button { border: 0; background: #1f5e96; color: #fff; padding: 0.6rem; border-radius: 0.4rem; cursor: pointer; }
     .error { color: #c12d2d; font-size: 0.85rem; }
     .success { color: #1a7a3d; font-size: 0.85rem; }
+    .field-error { color: #c12d2d; font-size: 0.78rem; }
     .token-note { word-break: break-all; }
     a { font-size: 0.85rem; color: #1f5e96; }
   `
@@ -57,6 +63,7 @@ import { AuthService } from '../../core/services/auth.service';
 export class ForgotPasswordComponent {
   readonly requestForm;
   readonly resetForm;
+  readonly passwordPolicyMessage = PASSWORD_POLICY_MESSAGE;
 
   isLoading = false;
   errorMessage = '';
@@ -74,8 +81,16 @@ export class ForgotPasswordComponent {
     });
     this.resetForm = this.fb.group({
       resetToken: ['', [Validators.required]],
-      newPassword: ['', [Validators.required, Validators.minLength(8)]]
+      newPassword: ['', [Validators.required, Validators.pattern(PASSWORD_PATTERN)]]
     });
+  }
+
+  requestFieldError(controlName: string, label: string): string {
+    return resolveFieldError(this.requestForm.get(controlName), label);
+  }
+
+  resetFieldError(controlName: string, label: string, patternMessage?: string): string {
+    return resolveFieldError(this.resetForm.get(controlName), label, patternMessage);
   }
 
   requestReset() {

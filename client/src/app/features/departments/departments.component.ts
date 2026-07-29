@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
 
 @Component({
   selector: 'app-departments',
@@ -10,9 +11,17 @@ import { ApiService } from '../../core/services/api.service';
   template: `
     <h2>Departments</h2>
     <form [formGroup]="form" (ngSubmit)="create()" class="inline">
-      <input placeholder="Name" formControlName="name" />
-      <input placeholder="Code" formControlName="code" />
-      <input placeholder="Description" formControlName="description" />
+      <label>
+        <input placeholder="Name" formControlName="name" />
+        <span class="field-error" *ngIf="fieldError('name', 'Name') as message">{{ message }}</span>
+      </label>
+      <label>
+        <input placeholder="Code" formControlName="code" />
+        <span class="field-error" *ngIf="fieldError('code', 'Code') as message">{{ message }}</span>
+      </label>
+      <label>
+        <input placeholder="Description" formControlName="description" />
+      </label>
       <button type="submit">Add</button>
     </form>
     <table>
@@ -28,9 +37,11 @@ import { ApiService } from '../../core/services/api.service';
     </table>
   `,
   styles: `
-    .inline { display: grid; grid-template-columns: 1fr 160px 1fr auto; gap: 0.45rem; margin-bottom: 0.75rem; }
+    .inline { display: grid; grid-template-columns: 1fr 160px 1fr auto; gap: 0.45rem; margin-bottom: 0.75rem; align-items: start; }
+    label { display: grid; gap: 0.25rem; }
     input { border: 1px solid #c6d3e0; border-radius: 0.35rem; padding: 0.45rem; }
-    button { border: 0; background: #1f5e96; color: #fff; padding: 0.45rem 0.65rem; border-radius: 0.35rem; }
+    button { border: 0; background: #1f5e96; color: #fff; padding: 0.45rem 0.65rem; border-radius: 0.35rem; height: fit-content; }
+    .field-error { color: #c12828; font-size: 0.78rem; }
     table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ef; }
     th, td { border-bottom: 1px solid #e7edf5; text-align: left; padding: 0.5rem; }
   `
@@ -50,6 +61,10 @@ export class DepartmentsComponent implements OnInit {
       code: ['', Validators.required],
       description: ['']
     });
+  }
+
+  fieldError(controlName: string, label: string): string {
+    return resolveFieldError(this.form.get(controlName), label);
   }
 
   ngOnInit(): void {
@@ -77,6 +92,7 @@ export class DepartmentsComponent implements OnInit {
 
   create() {
     if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
 

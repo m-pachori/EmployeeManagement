@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
 
 @Component({
   selector: 'app-login',
@@ -16,10 +17,12 @@ import { AuthService } from '../../core/services/auth.service';
         <label>
           Username or Email
           <input formControlName="userNameOrEmail" placeholder="admin" />
+          <span class="field-error" *ngIf="fieldError('userNameOrEmail', 'Username or email') as message">{{ message }}</span>
         </label>
         <label>
           Password
           <input type="password" formControlName="password" placeholder="Admin@123" />
+          <span class="field-error" *ngIf="fieldError('password', 'Password') as message">{{ message }}</span>
         </label>
         <button type="submit" [disabled]="isLoading">{{ isLoading ? 'Signing in...' : 'Login' }}</button>
         <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -36,6 +39,7 @@ import { AuthService } from '../../core/services/auth.service';
     input { border: 1px solid #c6d3e0; border-radius: 0.4rem; padding: 0.55rem; }
     button { border: 0; background: #1f5e96; color: #fff; padding: 0.6rem; border-radius: 0.4rem; cursor: pointer; }
     .error { color: #c12d2d; font-size: 0.85rem; }
+    .field-error { color: #c12d2d; font-size: 0.78rem; }
     a { font-size: 0.85rem; color: #1f5e96; text-decoration: none; }
   `
 })
@@ -55,6 +59,10 @@ export class LoginComponent {
       userNameOrEmail: ['', [Validators.required]],
       password: ['', [Validators.required]]
     });
+  }
+
+  fieldError(controlName: string, label: string): string {
+    return resolveFieldError(this.form.get(controlName), label);
   }
 
   submit() {

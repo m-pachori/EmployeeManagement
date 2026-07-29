@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { resolveFieldError } from '../../shared/validation/field-error';
 
 @Component({
   selector: 'app-roles',
@@ -11,8 +12,13 @@ import { ApiService } from '../../core/services/api.service';
   template: `
     <h2>Roles & Permissions</h2>
     <form [formGroup]="form" (ngSubmit)="createRole()" class="inline">
-      <input formControlName="name" placeholder="Role name" />
-      <input formControlName="description" placeholder="Description" />
+      <label>
+        <input formControlName="name" placeholder="Role name" />
+        <span class="field-error" *ngIf="fieldError('name', 'Role name') as message">{{ message }}</span>
+      </label>
+      <label>
+        <input formControlName="description" placeholder="Description" />
+      </label>
       <button type="submit">Add Role</button>
     </form>
     <table>
@@ -29,9 +35,11 @@ import { ApiService } from '../../core/services/api.service';
     </table>
   `,
   styles: `
-    .inline { display: grid; grid-template-columns: 180px 1fr auto; gap: 0.45rem; margin-bottom: 0.75rem; }
+    .inline { display: grid; grid-template-columns: 180px 1fr auto; gap: 0.45rem; margin-bottom: 0.75rem; align-items: start; }
+    label { display: grid; gap: 0.25rem; }
     input { border: 1px solid #c6d3e0; border-radius: 0.35rem; padding: 0.45rem; }
-    button { border: 0; background: #1f5e96; color: #fff; padding: 0.45rem 0.65rem; border-radius: 0.35rem; }
+    button { border: 0; background: #1f5e96; color: #fff; padding: 0.45rem 0.65rem; border-radius: 0.35rem; height: fit-content; }
+    .field-error { color: #c12828; font-size: 0.78rem; }
     table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ef; }
     th, td { border-bottom: 1px solid #e7edf5; text-align: left; padding: 0.5rem; }
   `
@@ -51,6 +59,10 @@ export class RolesComponent implements OnInit {
       name: ['', Validators.required],
       description: ['']
     });
+  }
+
+  fieldError(controlName: string, label: string): string {
+    return resolveFieldError(this.form.get(controlName), label);
   }
 
   ngOnInit(): void {
@@ -77,6 +89,7 @@ export class RolesComponent implements OnInit {
 
   createRole() {
     if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
 

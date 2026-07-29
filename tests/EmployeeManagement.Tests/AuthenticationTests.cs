@@ -5,6 +5,8 @@ using EmployeeManagement.Infrastructure.Authentication;
 using EmployeeManagement.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace EmployeeManagement.Tests;
@@ -150,7 +152,17 @@ public class AuthenticationTests
                 LockoutMinutes = 15,
                 PasswordExpiryDays = 90,
                 ResetTokenMinutes = 30
-            }));
+            }),
+            new FakeHostEnvironment(),
+            NullLogger<AuthService>.Instance);
+    }
+
+    private sealed class FakeHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "EmployeeManagement.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 
     private static async Task<User> SeedUserGraphAsync(ApplicationDbContext context, PasswordHasher<User> passwordHasher, DateTime expiresAtUtc)

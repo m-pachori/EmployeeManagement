@@ -47,7 +47,7 @@ export class AuthService {
   }
 
   forgotPassword(payload: { userNameOrEmail: string }) {
-    return this.api.post<{ resetToken?: string; message?: string }>('auth/forgot-password', payload);
+    return this.api.post<{ message?: string }>('auth/forgot-password', payload);
   }
 
   resetPassword(payload: { userNameOrEmail: string; resetToken: string; newPassword: string }) {

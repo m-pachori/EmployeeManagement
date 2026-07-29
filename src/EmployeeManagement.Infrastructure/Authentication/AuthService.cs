@@ -9,6 +9,8 @@ using EmployeeManagement.Application.Common.Interfaces;
 using EmployeeManagement.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -26,17 +28,23 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly JwtOptions _jwtOptions;
     private readonly AuthOptions _authOptions;
+    private readonly IHostEnvironment _environment;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         IPasswordHasher<User> passwordHasher,
         IOptions<JwtOptions> jwtOptions,
-        IOptions<AuthOptions> authOptions)
+        IOptions<AuthOptions> authOptions,
+        IHostEnvironment environment,
+        ILogger<AuthService> logger)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtOptions = jwtOptions.Value;
         _authOptions = authOptions.Value;
+        _environment = environment;
+        _logger = logger;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string clientIp, CancellationToken cancellationToken = default)
@@ -145,7 +153,45 @@ public class AuthService : IAuthService
                 .ThenInclude(x => x.Permission)
             .FirstOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
 
-        if (refreshToken is null || refreshToken.IsExpired || refreshToken.IsRevoked)
+        if (refreshToken is null)
+        {
+            throw new ApiException(Unauthorized, "Invalid refresh token.");
+        }
+
+        if (refreshToken.IsRevoked)
+        {
+            // SECURITY: reuse of an already-rotated/revoked refresh token is a strong signal
+            // of token theft. Revoke every active refresh token for this user so a stolen
+            // token (e.g. exfiltrated from localStorage via XSS) can't keep a session alive,
+            // and force re-authentication on all devices.
+            var activeTokens = await _unitOfWork.Repository<RefreshToken>().Query()
+                .Where(x => x.UserId == refreshToken.UserId && x.RevokedAtUtc == null)
+                .ToListAsync(cancellationToken);
+
+            foreach (var activeToken in activeTokens)
+            {
+                activeToken.RevokedAtUtc = DateTime.UtcNow;
+                activeToken.RevokedByIp = clientIp;
+            }
+
+            await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
+            {
+                UserId = refreshToken.UserId,
+                EventType = "RefreshTokenReuseDetected",
+                EntityName = nameof(User),
+                EntityId = refreshToken.UserId.ToString(),
+                Details = "Reuse of a revoked refresh token was detected; all active sessions for this user were revoked.",
+                IpAddress = clientIp
+            }, cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            _logger.LogWarning("Refresh token reuse detected for user {UserId} from {ClientIp}; all sessions revoked.", refreshToken.UserId, clientIp);
+
+            throw new ApiException(Unauthorized, "Invalid refresh token.");
+        }
+
+        if (refreshToken.IsExpired)
         {
             throw new ApiException(Unauthorized, "Invalid refresh token.");
         }
@@ -243,7 +289,18 @@ public class AuthService : IAuthService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return AuthOperationResult.Success("Password reset token generated.", resetToken);
+        // SECURITY: never return the raw reset token in the API response (CWE-640) —
+        // in a real deployment this must be delivered out-of-band via email/SMS using
+        // the configured SMTP settings. Logged only in Development for local testing,
+        // since this app has no email integration yet.
+        if (_environment.IsDevelopment())
+        {
+            _logger.LogInformation(
+                "[DEV ONLY - never logged in production] Password reset token for user {UserId}: {ResetToken}",
+                user.Id, resetToken);
+        }
+
+        return AuthOperationResult.Success("If the account exists, a password reset token has been generated and sent to the registered contact method.");
     }
 
     public async Task<AuthOperationResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)

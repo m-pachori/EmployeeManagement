@@ -33,8 +33,8 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200", "http://localhost:4201", "http://127.0.0.1:4201")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            .WithHeaders("Authorization", "Content-Type", "Accept");
     });
 });
 
@@ -85,6 +85,21 @@ builder.Services.AddApiVersioning(options =>
 });
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+
+// SECURITY: fail fast if running in Production with the committed/default placeholder
+// signing key (CWE-798). Production deployments must override Jwt:SecretKey via the
+// Jwt__SecretKey environment variable or a secret manager with a strong, unique value.
+if (builder.Environment.IsProduction() &&
+    (string.IsNullOrWhiteSpace(jwtOptions.SecretKey) ||
+     jwtOptions.SecretKey.Length < 32 ||
+     jwtOptions.SecretKey.Contains("CHANGE_THIS", StringComparison.OrdinalIgnoreCase) ||
+     jwtOptions.SecretKey.Contains("FOR_LOCAL_DEVELOPMENT", StringComparison.OrdinalIgnoreCase)))
+{
+    throw new InvalidOperationException(
+        "Jwt:SecretKey must be overridden with a strong, unique value (e.g. via the Jwt__SecretKey " +
+        "environment variable or a secret manager) before running in Production.");
+}
+
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -163,6 +178,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Security response headers (OWASP secure headers baseline): HSTS in non-dev, plus
+// anti-sniffing/clickjacking/referrer/permissions/CSP headers on every response.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'";
+    await next();
+});
 
 var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
 Directory.CreateDirectory(uploadsPath);

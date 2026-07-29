@@ -36,19 +36,34 @@ public class SettingsController : ControllerBase
         var settings = await query
             .OrderBy(x => x.Category)
             .ThenBy(x => x.Key)
-            .Select(x => new
-            {
-                x.Id,
-                x.Category,
-                x.Key,
-                x.Value,
-                x.Description,
-                x.UpdatedDate
-            })
             .ToListAsync(cancellationToken);
 
-        return Ok(settings);
+        // SECURITY: never return secret-like values (e.g. SMTP password/API keys) in
+        // cleartext (CWE-312). Values are still stored/updated normally; only the read
+        // response is masked, so any caller with Settings.Read (not just Settings.Write)
+        // can't harvest credentials.
+        var response = settings.Select(x => new
+        {
+            x.Id,
+            x.Category,
+            x.Key,
+            Value = IsSensitiveSetting(x.Key) ? MaskValue(x.Value) : x.Value,
+            x.Description,
+            x.UpdatedDate
+        });
+
+        return Ok(response);
     }
+
+    private static readonly string[] SensitiveKeyMarkers =
+    {
+        "password", "secret", "apikey", "api_key", "token", "connectionstring", "privatekey"
+    };
+
+    private static bool IsSensitiveSetting(string key) =>
+        SensitiveKeyMarkers.Any(marker => key.Contains(marker, StringComparison.OrdinalIgnoreCase));
+
+    private static string MaskValue(string value) => string.IsNullOrEmpty(value) ? value : "••••••••";
 
     [HttpPost]
     [Authorize(Policy = Permissions.SettingsWrite)]

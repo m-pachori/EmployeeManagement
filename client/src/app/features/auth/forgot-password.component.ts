@@ -12,7 +12,7 @@ import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../shared/validati
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="wrap">
-      <form [formGroup]="requestForm" (ngSubmit)="requestReset()" *ngIf="!resetToken">
+      <form [formGroup]="requestForm" (ngSubmit)="requestReset()" *ngIf="!requested">
         <h1>Forgot Password</h1>
         <p>Enter your username or email to receive a password reset token.</p>
         <label>
@@ -25,9 +25,9 @@ import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../shared/validati
         <a routerLink="/login">Back to login</a>
       </form>
 
-      <form [formGroup]="resetForm" (ngSubmit)="resetPassword()" *ngIf="resetToken">
+      <form [formGroup]="resetForm" (ngSubmit)="resetPassword()" *ngIf="requested">
         <h1>Reset Password</h1>
-        <p class="token-note">Reset token: <code>{{ resetToken }}</code></p>
+        <p>If an account exists for that username or email, a reset token has been sent to the registered contact method. Enter it below along with your new password.</p>
         <label>
           Reset Token
           <input formControlName="resetToken" />
@@ -56,7 +56,6 @@ import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../shared/validati
     .error { color: #c12d2d; font-size: 0.85rem; }
     .success { color: #1a7a3d; font-size: 0.85rem; }
     .field-error { color: #c12d2d; font-size: 0.78rem; }
-    .token-note { word-break: break-all; }
     a { font-size: 0.85rem; color: #1f5e96; }
   `
 })
@@ -68,7 +67,7 @@ export class ForgotPasswordComponent {
   isLoading = false;
   errorMessage = '';
   successMessage = '';
-  resetToken = '';
+  requested = false;
 
   constructor(
     private readonly fb: FormBuilder,
@@ -105,10 +104,9 @@ export class ForgotPasswordComponent {
     const userNameOrEmail = this.requestForm.getRawValue().userNameOrEmail as string;
 
     this.authService.forgotPassword({ userNameOrEmail }).subscribe({
-      next: (response) => {
+      next: () => {
         this.isLoading = false;
-        this.resetToken = response?.resetToken ?? '';
-        this.resetForm.patchValue({ resetToken: this.resetToken });
+        this.requested = true;
         this.cdr.markForCheck();
       },
       error: (error) => {

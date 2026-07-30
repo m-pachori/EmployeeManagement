@@ -42,7 +42,19 @@ dotnet ef database update `
 
 This runs all EF Core migrations (schema + seed data for permissions/roles/admin user). A raw SQL equivalent is also available under [src/EmployeeManagement.Infrastructure/Persistence/Scripts](src/EmployeeManagement.Infrastructure/Persistence/Scripts) if you prefer to apply it manually.
 
-### 3. Run the backend API
+### 3. Configure the JWT signing key (TD-02)
+
+The `Jwt:SecretKey` in `appsettings.json` is a placeholder and **must not be used as-is**. Set it locally via .NET user secrets:
+
+```powershell
+dotnet user-secrets init --project src/EmployeeManagement.API/EmployeeManagement.API.csproj
+dotnet user-secrets set "Jwt:SecretKey" "$(New-Guid)-$(New-Guid)-$(New-Guid)" `
+  --project src/EmployeeManagement.API/EmployeeManagement.API.csproj
+```
+
+For deployments, inject it via the `Jwt__SecretKey` environment variable or a secrets manager (Azure Key Vault, AWS Secrets Manager, etc.). The API will refuse to start in Production with a weak or placeholder key.
+
+### 4. Run the backend API
 
 ```powershell
 dotnet run --project src/EmployeeManagement.API/EmployeeManagement.API.csproj
@@ -54,7 +66,7 @@ dotnet run --project src/EmployeeManagement.API/EmployeeManagement.API.csproj
 
 Default seeded login: **admin / Admin@123**
 
-### 4. Run the frontend
+### 5. Run the frontend
 
 ```powershell
 cd client
@@ -63,6 +75,15 @@ npm start
 ```
 
 The Angular dev server runs on `http://localhost:4200` and proxies `/api` requests to `https://localhost:7259` (see [client/proxy.conf.json](client/proxy.conf.json)). Log in with the seeded admin credentials above.
+
+## Environment Variables Reference
+
+| Variable | Purpose | Required in Production |
+|---|---|---|
+| `Jwt__SecretKey` | JWT HMAC-SHA256 signing key (min 32 chars, random) | ✅ |
+| `Seed__AdminPassword` | Override the default admin seed password | ✅ |
+| `ConnectionStrings__DefaultConnection` | SQL Server connection string | ✅ |
+| `Cors__AllowedOrigins__0` | First allowed CORS origin (e.g. `https://app.example.com`) | ✅ |
 
 ## Running with Docker Compose (API + SQL Server)
 

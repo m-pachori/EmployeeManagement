@@ -24,7 +24,7 @@ export const routes: Routes = [
 		canActivate: [authGuard],
 		children: [
 			{ path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-			{ path: 'dashboard', component: DashboardComponent, canActivate: [permissionGuard('Dashboard.Read')] },
+			{ path: 'dashboard', component: DashboardComponent },
 			{ path: 'employees', component: EmployeesComponent, canActivate: [permissionGuard('Employees.Read')] },
 			{ path: 'employees/new', component: EmployeeFormComponent, canActivate: [permissionGuard('Employees.Write')] },
 			{ path: 'employees/:id/edit', component: EmployeeFormComponent, canActivate: [permissionGuard('Employees.Write')] },

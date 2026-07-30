@@ -136,10 +136,8 @@ public class AuthService : IAuthService
 
         var tokenHash = TokenGenerator.HashToken(request.RefreshToken);
 
+        // TD-08: removed the duplicate UserRoles → Role include path that was an AI copy-paste artefact
         var refreshToken = await _unitOfWork.Repository<RefreshToken>().Query()
-            .Include(x => x.User)
-                .ThenInclude(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
             .Include(x => x.User)
                 .ThenInclude(x => x.UserRoles)
                 .ThenInclude(x => x.Role)

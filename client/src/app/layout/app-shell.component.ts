@@ -12,7 +12,7 @@ import { AuthService } from '../core/services/auth.service';
       <aside class="sidebar">
         <h2>EmployeeMS</h2>
         <nav>
-          <a *ngIf="auth.hasPermission('Dashboard.Read')" routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+          <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
           <a *ngIf="auth.hasPermission('Employees.Read')" routerLink="/employees" routerLinkActive="active">Employees</a>
           <a *ngIf="auth.hasPermission('Departments.Read')" routerLink="/departments" routerLinkActive="active">Departments</a>
           <a *ngIf="auth.hasPermission('Users.Read')" routerLink="/users" routerLinkActive="active">Users</a>

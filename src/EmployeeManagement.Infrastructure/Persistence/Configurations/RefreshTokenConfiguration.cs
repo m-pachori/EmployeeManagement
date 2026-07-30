@@ -40,5 +40,10 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.HasIndex(x => x.TokenHash).IsUnique();
         builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => x.ExpiresAtUtc);
+        // TD-04: composite index to make the reuse-detection query (UserId + RevokedAtUtc IS NULL)
+        // sargable — previously only a single-column UserId index existed.
+        builder.HasIndex(x => new { x.UserId, x.RevokedAtUtc })
+            .HasFilter("[RevokedAtUtc] IS NULL")
+            .HasDatabaseName("IX_RefreshTokens_UserId_Active");
     }
 }

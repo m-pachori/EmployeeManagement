@@ -239,13 +239,6 @@ public class ReportsController : ControllerBase
             .Replace("\n", " ");
     }
 
-    private static string EscapeCsv(string value)
-    {
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
-        {
-            return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
-
-        return value;
-    }
+    // TD-11: removed duplicate EscapeCsv — delegated to shared CsvHelper
+    private static string EscapeCsv(string value) => CsvHelper.Escape(value);
 }

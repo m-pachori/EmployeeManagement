@@ -77,6 +77,7 @@ export class LoginComponent {
     this.authService.login(this.form.getRawValue() as { userNameOrEmail: string; password: string }).subscribe({
       next: () => {
         this.isLoading = false;
+        this.cdr.markForCheck();
         this.router.navigate(['/dashboard']);
       },
       error: (error) => {

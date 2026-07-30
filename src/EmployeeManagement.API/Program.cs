@@ -27,15 +27,36 @@ builder.Host.UseSerilog();
 // Add services to the container.
 builder.Services.AddControllers();
 
+// TD-10: CORS — keep the dev-only origin whitelist in Development; Production reads allowed
+// origins from configuration so the policy is never accidentally applied with localhost origins
+// in a deployed environment. Override Cors__AllowedOrigins in your hosting environment.
+var allowedOriginsConfig = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("ClientDevPolicy", policy =>
+    if (builder.Environment.IsDevelopment())
     {
-        policy
-            .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200", "http://localhost:4201", "http://127.0.0.1:4201")
-            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-            .WithHeaders("Authorization", "Content-Type", "Accept");
-    });
+        options.AddPolicy("AppCorsPolicy", policy =>
+        {
+            policy
+                .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200", "http://localhost:4201", "http://127.0.0.1:4201")
+                .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                .WithHeaders("Authorization", "Content-Type", "Accept");
+        });
+    }
+    else
+    {
+        var origins = allowedOriginsConfig ?? [];
+        options.AddPolicy("AppCorsPolicy", policy =>
+        {
+            policy
+                .WithOrigins(origins)
+                .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                .WithHeaders("Authorization", "Content-Type", "Accept");
+        });
+    }
 });
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -208,7 +229,7 @@ app.UseResponseCaching();
 
 app.UseRateLimiter();
 
-app.UseCors("ClientDevPolicy");
+app.UseCors("AppCorsPolicy");
 
 app.UseAuthentication();
 

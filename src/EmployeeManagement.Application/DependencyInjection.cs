@@ -3,9 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EmployeeManagement.Application;
 
 /// <summary>
-/// Registers Application-layer services with the dependency injection container.
-/// Business/use-case services (Employees, Departments, Users, Roles, Settings, Reports, etc.)
-/// will be added here as each module is implemented.
+/// Registers Application-layer service interfaces. Concrete implementations live in
+/// Infrastructure and are registered by AddInfrastructure(). This method is the
+/// extension point for any pure-Application-layer registrations (e.g. pipeline
+/// behaviours, validators) that do not depend on Infrastructure.
 /// </summary>
 public static class DependencyInjection
 {

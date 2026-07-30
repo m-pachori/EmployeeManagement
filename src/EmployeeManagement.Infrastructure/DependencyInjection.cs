@@ -1,8 +1,13 @@
 using EmployeeManagement.Application.Authentication.Interfaces;
 using EmployeeManagement.Application.Common.Interfaces;
+using EmployeeManagement.Application.Departments.Interfaces;
+using EmployeeManagement.Application.Employees.Interfaces;
+using EmployeeManagement.Application.Roles.Interfaces;
+using EmployeeManagement.Application.Users.Interfaces;
 using EmployeeManagement.Domain.Entities;
 using EmployeeManagement.Infrastructure.Authentication;
 using EmployeeManagement.Infrastructure.Persistence;
+using EmployeeManagement.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +17,7 @@ namespace EmployeeManagement.Infrastructure;
 
 /// <summary>
 /// Registers Infrastructure-layer services: EF Core DbContext, repository pattern,
-/// and any external integrations (SMTP, file storage, etc.) added in later phases.
+/// application-layer business services, and any external integrations.
 /// </summary>
 public static class DependencyInjection
 {
@@ -33,6 +38,12 @@ public static class DependencyInjection
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<DatabaseInitializer>();
+
+        // Application-layer business services (TD-01)
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IRoleService, RoleService>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<ApplicationDbContext>("database");

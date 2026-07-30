@@ -31,8 +31,7 @@ public class AuditController : ApiControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        (page, pageSize) = ClampPagination(page, pageSize);
 
         var query = _unitOfWork.Repository<AuditLog>().Query().AsNoTracking();
 

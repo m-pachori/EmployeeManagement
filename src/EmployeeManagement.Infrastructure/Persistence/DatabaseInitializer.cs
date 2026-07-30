@@ -5,6 +5,7 @@ using EmployeeManagement.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -19,6 +20,7 @@ public class DatabaseInitializer
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly AuthOptions _authOptions;
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<DatabaseInitializer> _logger;
 
     public DatabaseInitializer(
@@ -27,6 +29,7 @@ public class DatabaseInitializer
         IPasswordHasher<User> passwordHasher,
         IOptions<AuthOptions> authOptions,
         IConfiguration configuration,
+        IHostEnvironment environment,
         ILogger<DatabaseInitializer> logger)
     {
         _context = context;
@@ -34,16 +37,38 @@ public class DatabaseInitializer
         _passwordHasher = passwordHasher;
         _authOptions = authOptions.Value;
         _configuration = configuration;
+        _environment = environment;
         _logger = logger;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        await _context.Database.MigrateAsync(cancellationToken);
+        // ARCHITECTURE/OPS: auto-applying EF Core migrations on every app startup is convenient
+        // for local development but risky in shared environments (no review gate, multiple
+        // scaled-out instances racing to migrate the same database). Only do it automatically in
+        // Development unless explicitly opted into via "Database:AutoMigrateOnStartup".
+        if (ShouldAutoMigrate())
+        {
+            await _context.Database.MigrateAsync(cancellationToken);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Skipping automatic EF Core migration on startup (environment: {Environment}). Apply " +
+                "migrations explicitly (e.g. 'dotnet ef database update' or your deployment pipeline), or set " +
+                "'Database:AutoMigrateOnStartup' to true to opt back into automatic migration.",
+                _environment.EnvironmentName);
+        }
 
         await SeedPermissionsAsync(cancellationToken);
         await SeedRolesAsync(cancellationToken);
         await SeedAdminUserAsync(cancellationToken);
+    }
+
+    private bool ShouldAutoMigrate()
+    {
+        var configuredValue = _configuration.GetValue<bool?>("Database:AutoMigrateOnStartup");
+        return configuredValue ?? _environment.IsDevelopment();
     }
 
     private async Task SeedPermissionsAsync(CancellationToken cancellationToken)
@@ -156,6 +181,16 @@ public class DatabaseInitializer
         if (!string.IsNullOrWhiteSpace(configuredPassword))
         {
             return configuredPassword;
+        }
+
+        // SECURITY: refuse to silently seed a well-known default credential (CWE-798) in
+        // Production - fail fast, matching the Jwt:SecretKey guard in Program.cs.
+        if (_environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "Seed:AdminPassword must be configured (e.g. via the Seed__AdminPassword environment " +
+                "variable or a secret manager) before seeding the default admin account in Production. " +
+                "Refusing to start with the well-known default seed password.");
         }
 
         _logger.LogWarning(

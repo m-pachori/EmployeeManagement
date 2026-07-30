@@ -12,14 +12,14 @@ import { AuthService } from '../core/services/auth.service';
       <aside class="sidebar">
         <h2>EmployeeMS</h2>
         <nav>
-          <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-          <a routerLink="/employees" routerLinkActive="active">Employees</a>
-          <a routerLink="/departments" routerLinkActive="active">Departments</a>
-          <a routerLink="/users" routerLinkActive="active">Users</a>
-          <a routerLink="/roles" routerLinkActive="active">Roles</a>
-          <a routerLink="/settings" routerLinkActive="active">Settings</a>
-          <a routerLink="/audit" routerLinkActive="active">Audit</a>
-          <a routerLink="/reports" routerLinkActive="active">Reports</a>
+          <a *ngIf="auth.hasPermission('Dashboard.Read')" routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+          <a *ngIf="auth.hasPermission('Employees.Read')" routerLink="/employees" routerLinkActive="active">Employees</a>
+          <a *ngIf="auth.hasPermission('Departments.Read')" routerLink="/departments" routerLinkActive="active">Departments</a>
+          <a *ngIf="auth.hasPermission('Users.Read')" routerLink="/users" routerLinkActive="active">Users</a>
+          <a *ngIf="auth.hasPermission('Roles.Read')" routerLink="/roles" routerLinkActive="active">Roles</a>
+          <a *ngIf="auth.hasPermission('Settings.Read')" routerLink="/settings" routerLinkActive="active">Settings</a>
+          <a *ngIf="auth.hasPermission('Audit.Read')" routerLink="/audit" routerLinkActive="active">Audit</a>
+          <a *ngIf="auth.hasPermission('Reports.Read')" routerLink="/reports" routerLinkActive="active">Reports</a>
         </nav>
       </aside>
       <main>

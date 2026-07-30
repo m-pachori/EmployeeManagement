@@ -33,6 +33,15 @@ public abstract class ApiControllerBase : ControllerBase
     protected string? ClientIpAddress => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     /// <summary>
+    /// Clamps paged-list query parameters to sane bounds (page >= 1, 1 &lt;= pageSize &lt;= maxPageSize).
+    /// Previously duplicated ad-hoc (and inconsistently missing) across list endpoints.
+    /// </summary>
+    protected static (int Page, int PageSize) ClampPagination(int page, int pageSize, int maxPageSize = 100)
+    {
+        return (Math.Max(1, page), Math.Clamp(pageSize, 1, maxPageSize));
+    }
+
+    /// <summary>
     /// Records an audit log entry as part of the current unit of work, using the current
     /// request's user id/actor name/IP address. The caller is still responsible for calling
     /// IUnitOfWork.SaveChangesAsync so the entry commits atomically with the business change.

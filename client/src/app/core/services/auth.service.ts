@@ -17,10 +17,13 @@ export class AuthService {
   private readonly accessTokenKey = 'ems_access_token';
   private readonly refreshTokenKey = 'ems_refresh_token';
   private readonly userNameKey = 'ems_user_name';
+  private readonly permissionsKey = 'ems_permissions';
 
   private readonly accessTokenSignal = signal<string | null>(localStorage.getItem(this.accessTokenKey));
+  private readonly permissionsSignal = signal<string[]>(this.readStoredPermissions());
   readonly isAuthenticated = computed(() => !!this.accessTokenSignal());
   readonly userName = computed(() => localStorage.getItem(this.userNameKey) ?? 'User');
+  readonly permissions = computed(() => this.permissionsSignal());
 
   constructor(
     private readonly api: ApiService,
@@ -33,9 +36,25 @@ export class AuthService {
         localStorage.setItem(this.accessTokenKey, response.accessToken);
         localStorage.setItem(this.refreshTokenKey, response.refreshToken);
         localStorage.setItem(this.userNameKey, response.userName);
+        localStorage.setItem(this.permissionsKey, JSON.stringify(response.permissions ?? []));
         this.accessTokenSignal.set(response.accessToken);
+        this.permissionsSignal.set(response.permissions ?? []);
       })
     );
+  }
+
+  /** Returns true when the current user holds the given permission code (e.g. "Users.Read"). */
+  hasPermission(permission: string): boolean {
+    return this.permissionsSignal().includes(permission);
+  }
+
+  private readStoredPermissions(): string[] {
+    try {
+      const raw = localStorage.getItem(this.permissionsKey);
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
   }
 
   logout() {
@@ -66,7 +85,9 @@ export class AuthService {
     localStorage.removeItem(this.accessTokenKey);
     localStorage.removeItem(this.refreshTokenKey);
     localStorage.removeItem(this.userNameKey);
+    localStorage.removeItem(this.permissionsKey);
     this.accessTokenSignal.set(null);
+    this.permissionsSignal.set([]);
     this.router.navigate(['/login']);
   }
 }

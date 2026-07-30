@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { resolveFieldError } from '../../shared/validation/field-error';
+import { extractErrorMessage } from '../../shared/http/extract-error-message';
 
 @Component({
   selector: 'app-departments',
@@ -10,6 +11,8 @@ import { resolveFieldError } from '../../shared/validation/field-error';
   imports: [CommonModule, ReactiveFormsModule],
   template: `
     <h2>Departments</h2>
+    <p class="error" *ngIf="loadErrorMessage">{{ loadErrorMessage }}</p>
+
     <form [formGroup]="form" (ngSubmit)="create()" class="inline">
       <label>
         <input placeholder="Name" formControlName="name" />
@@ -22,11 +25,19 @@ import { resolveFieldError } from '../../shared/validation/field-error';
       <label>
         <input placeholder="Description" formControlName="description" />
       </label>
-      <button type="submit">Add</button>
+      <button type="submit" [disabled]="isSaving">{{ isSaving ? 'Saving...' : 'Add' }}</button>
     </form>
+    <p class="error" *ngIf="saveErrorMessage">{{ saveErrorMessage }}</p>
+
     <table>
       <thead><tr><th>Name</th><th>Code</th><th>Employees</th><th></th></tr></thead>
       <tbody>
+        <tr *ngIf="isLoading">
+          <td colspan="4">Loading departments...</td>
+        </tr>
+        <tr *ngIf="!isLoading && items.length === 0">
+          <td colspan="4">No departments found.</td>
+        </tr>
         <tr *ngFor="let row of items">
           <td>{{ row.name }}</td>
           <td>{{ row.code }}</td>
@@ -42,6 +53,7 @@ import { resolveFieldError } from '../../shared/validation/field-error';
     input { border: 1px solid #c6d3e0; border-radius: 0.35rem; padding: 0.45rem; }
     button { border: 0; background: #1f5e96; color: #fff; padding: 0.45rem 0.65rem; border-radius: 0.35rem; height: fit-content; }
     .field-error { color: #c12828; font-size: 0.78rem; }
+    .error { color: #c12828; font-size: 0.82rem; margin: 0.2rem 0 0.5rem; }
     table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9e2ef; }
     th, td { border-bottom: 1px solid #e7edf5; text-align: left; padding: 0.5rem; }
   `
@@ -50,6 +62,10 @@ export class DepartmentsComponent implements OnInit {
   readonly form;
 
   items: any[] = [];
+  isLoading = false;
+  isSaving = false;
+  loadErrorMessage = '';
+  saveErrorMessage = '';
 
   constructor(
     private readonly api: ApiService,
@@ -72,21 +88,37 @@ export class DepartmentsComponent implements OnInit {
   }
 
   load() {
-    this.api.get<any>('departments').subscribe((value) => {
-      const payload = value as any;
-      const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
-      const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
+    this.isLoading = true;
+    this.loadErrorMessage = '';
 
-      this.items = rows.map((row) => ({
-        id: row.id ?? row.Id,
-        name: row.name ?? row.Name,
-        code: row.code ?? row.Code,
-        description: row.description ?? row.Description,
-        isActive: row.isActive ?? row.IsActive,
-        employeeCount: row.employeeCount ?? row.EmployeeCount ?? 0
-      }));
+    this.api.get<any>('departments').subscribe({
+      next: (value) => {
+        try {
+          const payload = value as any;
+          const rawRows = payload?.items ?? payload?.Items ?? payload?.data ?? payload?.Data ?? payload;
+          const rows = Array.isArray(rawRows) ? rawRows : rawRows ? [rawRows] : [];
 
-      this.cdr.markForCheck();
+          this.items = rows.map((row) => ({
+            id: row.id ?? row.Id,
+            name: row.name ?? row.Name,
+            code: row.code ?? row.Code,
+            description: row.description ?? row.Description,
+            isActive: row.isActive ?? row.IsActive,
+            employeeCount: row.employeeCount ?? row.EmployeeCount ?? 0
+          }));
+        } catch {
+          this.items = [];
+          this.loadErrorMessage = 'Failed to parse departments response.';
+        }
+
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.isLoading = false;
+        this.loadErrorMessage = extractErrorMessage(error, 'Failed to load departments.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -96,13 +128,30 @@ export class DepartmentsComponent implements OnInit {
       return;
     }
 
-    this.api.post('departments', { ...this.form.getRawValue(), isActive: true }).subscribe(() => {
-      this.form.reset({ name: '', code: '', description: '' });
-      this.load();
+    this.isSaving = true;
+    this.saveErrorMessage = '';
+
+    this.api.post('departments', { ...this.form.getRawValue(), isActive: true }).subscribe({
+      next: () => {
+        this.isSaving = false;
+        this.form.reset({ name: '', code: '', description: '' });
+        this.load();
+      },
+      error: (error) => {
+        this.isSaving = false;
+        this.saveErrorMessage = extractErrorMessage(error, 'Failed to create department.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
   remove(id: number) {
-    this.api.delete(`departments/${id}`).subscribe(() => this.load());
+    this.api.delete(`departments/${id}`).subscribe({
+      next: () => this.load(),
+      error: (error) => {
+        this.saveErrorMessage = extractErrorMessage(error, 'Failed to delete department.');
+        this.cdr.markForCheck();
+      }
+    });
   }
 }

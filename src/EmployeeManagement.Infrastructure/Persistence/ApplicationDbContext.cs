@@ -5,7 +5,6 @@ namespace EmployeeManagement.Infrastructure.Persistence;
 
 /// <summary>
 /// EF Core database context for the Employee Management System.
-/// Entity DbSets (Employees, Departments, Users, Roles, etc.) are added during database design (Phase 2).
 /// </summary>
 public class ApplicationDbContext : DbContext
 {

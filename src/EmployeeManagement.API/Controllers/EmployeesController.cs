@@ -16,15 +16,17 @@ namespace EmployeeManagement.API.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/employees")]
 [Authorize]
-public class EmployeesController : ControllerBase
+public class EmployeesController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IWebHostEnvironment _environment;
+    private readonly IAuditLogService _auditLogService;
 
-    public EmployeesController(IUnitOfWork unitOfWork, IWebHostEnvironment environment)
+    public EmployeesController(IUnitOfWork unitOfWork, IWebHostEnvironment environment, IAuditLogService auditLogService)
     {
         _unitOfWork = unitOfWork;
         _environment = environment;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet]
@@ -188,16 +190,8 @@ public class EmployeesController : ControllerBase
         };
 
         await _unitOfWork.Repository<Employee>().AddAsync(employee, cancellationToken);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "EmployeeCreate",
-            EntityName = nameof(Employee),
-            Details = $"Created employee '{employee.EmployeeCode}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "EmployeeCreate", nameof(Employee), null,
+            $"Created employee '{employee.EmployeeCode}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -240,17 +234,8 @@ public class EmployeesController : ControllerBase
         employee.UpdatedBy = User.Identity?.Name ?? "system";
         employee.UpdatedDate = DateTime.UtcNow;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "EmployeeUpdate",
-            EntityName = nameof(Employee),
-            EntityId = employee.Id.ToString(),
-            Details = $"Updated employee '{employee.EmployeeCode}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "EmployeeUpdate", nameof(Employee), employee.Id.ToString(),
+            $"Updated employee '{employee.EmployeeCode}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Employee updated successfully." });
@@ -264,17 +249,8 @@ public class EmployeesController : ControllerBase
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Employee not found.");
 
         _unitOfWork.Repository<Employee>().Remove(employee);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "EmployeeDelete",
-            EntityName = nameof(Employee),
-            EntityId = employee.Id.ToString(),
-            Details = $"Deleted employee '{employee.EmployeeCode}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "EmployeeDelete", nameof(Employee), employee.Id.ToString(),
+            $"Deleted employee '{employee.EmployeeCode}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Employee deleted successfully." });
@@ -433,12 +409,6 @@ public class EmployeesController : ControllerBase
         {
             throw new ApiException(StatusCodes.Status409Conflict, "Employee email already exists.");
         }
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-        return claim is not null && int.TryParse(claim.Value, out var userId) ? userId : null;
     }
 
     private static string EscapeCsv(string? value)

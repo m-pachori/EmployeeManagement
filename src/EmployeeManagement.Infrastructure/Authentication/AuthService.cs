@@ -30,6 +30,7 @@ public class AuthService : IAuthService
     private readonly AuthOptions _authOptions;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<AuthService> _logger;
+    private readonly IAuditLogService _auditLogService;
 
     public AuthService(
         IUnitOfWork unitOfWork,
@@ -37,7 +38,8 @@ public class AuthService : IAuthService
         IOptions<JwtOptions> jwtOptions,
         IOptions<AuthOptions> authOptions,
         IHostEnvironment environment,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        IAuditLogService auditLogService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
@@ -45,6 +47,7 @@ public class AuthService : IAuthService
         _authOptions = authOptions.Value;
         _environment = environment;
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string clientIp, CancellationToken cancellationToken = default)
@@ -116,17 +119,8 @@ public class AuthService : IAuthService
             CreatedByIp = clientIp
         });
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = user.Id,
-            EventType = "Login",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = "User logged in successfully.",
-            IpAddress = clientIp,
-            CreatedBy = user.UserName,
-            UpdatedBy = user.UserName
-        }, cancellationToken);
+        await _auditLogService.RecordAsync("Login", nameof(User), user.Id.ToString(),
+            "User logged in successfully.", user.Id, user.UserName, clientIp, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -174,15 +168,9 @@ public class AuthService : IAuthService
                 activeToken.RevokedByIp = clientIp;
             }
 
-            await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-            {
-                UserId = refreshToken.UserId,
-                EventType = "RefreshTokenReuseDetected",
-                EntityName = nameof(User),
-                EntityId = refreshToken.UserId.ToString(),
-                Details = "Reuse of a revoked refresh token was detected; all active sessions for this user were revoked.",
-                IpAddress = clientIp
-            }, cancellationToken);
+            await _auditLogService.RecordAsync("RefreshTokenReuseDetected", nameof(User), refreshToken.UserId.ToString(),
+                "Reuse of a revoked refresh token was detected; all active sessions for this user were revoked.",
+                refreshToken.UserId, actorName: null, ipAddress: clientIp, cancellationToken: cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -244,17 +232,8 @@ public class AuthService : IAuthService
         refreshToken.RevokedAtUtc = DateTime.UtcNow;
         refreshToken.RevokedByIp = clientIp;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = refreshToken.UserId,
-            EventType = "Logout",
-            EntityName = nameof(User),
-            EntityId = refreshToken.UserId.ToString(),
-            Details = "User logged out.",
-            IpAddress = clientIp,
-            CreatedBy = refreshToken.User.UserName,
-            UpdatedBy = refreshToken.User.UserName
-        }, cancellationToken);
+        await _auditLogService.RecordAsync("Logout", nameof(User), refreshToken.UserId.ToString(),
+            "User logged out.", refreshToken.UserId, refreshToken.User.UserName, clientIp, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -276,16 +255,8 @@ public class AuthService : IAuthService
         user.PasswordResetTokenHash = TokenGenerator.HashToken(resetToken);
         user.PasswordResetTokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(_authOptions.ResetTokenMinutes);
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = user.Id,
-            EventType = "ForgotPassword",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = "Password reset token generated.",
-            CreatedBy = user.UserName,
-            UpdatedBy = user.UserName
-        }, cancellationToken);
+        await _auditLogService.RecordAsync("ForgotPassword", nameof(User), user.Id.ToString(),
+            "Password reset token generated.", user.Id, user.UserName, ipAddress: null, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -337,16 +308,8 @@ public class AuthService : IAuthService
         user.FailedLoginAttempts = 0;
         user.LockoutEndUtc = null;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = user.Id,
-            EventType = "ResetPassword",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = "Password reset completed.",
-            CreatedBy = user.UserName,
-            UpdatedBy = user.UserName
-        }, cancellationToken);
+        await _auditLogService.RecordAsync("ResetPassword", nameof(User), user.Id.ToString(),
+            "Password reset completed.", user.Id, user.UserName, ipAddress: null, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -374,16 +337,8 @@ public class AuthService : IAuthService
         user.PasswordChangedAtUtc = DateTime.UtcNow;
         user.PasswordExpiresAtUtc = DateTime.UtcNow.AddDays(_authOptions.PasswordExpiryDays);
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = user.Id,
-            EventType = "ChangePassword",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = "Password changed by authenticated user.",
-            CreatedBy = user.UserName,
-            UpdatedBy = user.UserName
-        }, cancellationToken);
+        await _auditLogService.RecordAsync("ChangePassword", nameof(User), user.Id.ToString(),
+            "Password changed by authenticated user.", user.Id, user.UserName, ipAddress: null, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

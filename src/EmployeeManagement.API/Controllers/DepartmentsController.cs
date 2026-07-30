@@ -13,13 +13,15 @@ namespace EmployeeManagement.API.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/departments")]
 [Authorize]
-public class DepartmentsController : ControllerBase
+public class DepartmentsController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuditLogService _auditLogService;
 
-    public DepartmentsController(IUnitOfWork unitOfWork)
+    public DepartmentsController(IUnitOfWork unitOfWork, IAuditLogService auditLogService)
     {
         _unitOfWork = unitOfWork;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet]
@@ -86,16 +88,8 @@ public class DepartmentsController : ControllerBase
         };
 
         await _unitOfWork.Repository<Department>().AddAsync(department, cancellationToken);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "DepartmentCreate",
-            EntityName = nameof(Department),
-            Details = $"Created department '{department.Name}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "DepartmentCreate", nameof(Department), null,
+            $"Created department '{department.Name}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -118,17 +112,8 @@ public class DepartmentsController : ControllerBase
         department.UpdatedBy = User.Identity?.Name;
         department.UpdatedDate = DateTime.UtcNow;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "DepartmentUpdate",
-            EntityName = nameof(Department),
-            EntityId = department.Id.ToString(),
-            Details = $"Updated department '{department.Name}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "DepartmentUpdate", nameof(Department), department.Id.ToString(),
+            $"Updated department '{department.Name}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Department updated successfully." });
@@ -149,27 +134,12 @@ public class DepartmentsController : ControllerBase
         }
 
         _unitOfWork.Repository<Department>().Remove(department);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "DepartmentDelete",
-            EntityName = nameof(Department),
-            EntityId = department.Id.ToString(),
-            Details = $"Deleted department '{department.Name}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "DepartmentDelete", nameof(Department), department.Id.ToString(),
+            $"Deleted department '{department.Name}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Ok(new { message = "Department deleted successfully." });
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-        return claim is not null && int.TryParse(claim.Value, out var userId) ? userId : null;
     }
 
     private async Task ValidateDepartmentAsync(UpsertDepartmentRequest request, CancellationToken cancellationToken, int? existingDepartmentId = null)

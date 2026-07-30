@@ -12,7 +12,7 @@ namespace EmployeeManagement.API.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/audit")]
 [Authorize]
-public class AuditController : ControllerBase
+public class AuditController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
 
@@ -34,7 +34,7 @@ public class AuditController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = _unitOfWork.Repository<AuditLog>().Query().AsNoTracking().AsQueryable();
+        var query = _unitOfWork.Repository<AuditLog>().Query().AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(eventType))
         {

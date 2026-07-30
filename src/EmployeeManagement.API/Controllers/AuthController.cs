@@ -11,7 +11,7 @@ namespace EmployeeManagement.API.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/auth")]
-public class AuthController : ControllerBase
+public class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
 
@@ -68,7 +68,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
-        var userId = GetCurrentUserId();
+        var userId = RequireCurrentUserId();
         var response = await _authService.ChangePasswordAsync(userId, request, cancellationToken);
         return Ok(response);
     }
@@ -79,22 +79,11 @@ public class AuthController : ControllerBase
     {
         return Ok(new
         {
-            userId = GetCurrentUserId(),
+            userId = RequireCurrentUserId(),
             userName = User.Identity?.Name,
             roles = User.Claims.Where(x => x.Type == ClaimTypes.Role).Select(x => x.Value).ToArray(),
             permissions = User.Claims.Where(x => x.Type == "permission").Select(x => x.Value).ToArray()
         });
-    }
-
-    private int GetCurrentUserId()
-    {
-        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-        if (claim is null || !int.TryParse(claim.Value, out var userId))
-        {
-            throw new UnauthorizedAccessException("User identifier claim is missing.");
-        }
-
-        return userId;
     }
 
     private string GetClientIp()

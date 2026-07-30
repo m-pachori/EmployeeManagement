@@ -135,8 +135,9 @@ public class AuthenticationTests
 
     private static AuthService CreateAuthService(ApplicationDbContext context, PasswordHasher<User> passwordHasher, AuthOptions? authOptions = null)
     {
+        var unitOfWork = new UnitOfWork(context);
         return new AuthService(
-            new UnitOfWork(context),
+            unitOfWork,
             passwordHasher,
             Options.Create(new JwtOptions
             {
@@ -154,7 +155,8 @@ public class AuthenticationTests
                 ResetTokenMinutes = 30
             }),
             new FakeHostEnvironment(),
-            NullLogger<AuthService>.Instance);
+            NullLogger<AuthService>.Instance,
+            new AuditLogService(unitOfWork));
     }
 
     private sealed class FakeHostEnvironment : IHostEnvironment

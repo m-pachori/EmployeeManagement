@@ -15,15 +15,17 @@ namespace EmployeeManagement.API.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/users")]
 [Authorize]
-public class UsersController : ControllerBase
+public class UsersController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly IAuditLogService _auditLogService;
 
-    public UsersController(IUnitOfWork unitOfWork, IPasswordHasher<User> passwordHasher)
+    public UsersController(IUnitOfWork unitOfWork, IPasswordHasher<User> passwordHasher, IAuditLogService auditLogService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet]
@@ -107,16 +109,8 @@ public class UsersController : ControllerBase
         user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
 
         await _unitOfWork.Repository<User>().AddAsync(user, cancellationToken);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "UserCreate",
-            EntityName = nameof(User),
-            Details = $"Created user '{user.UserName}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "UserCreate", nameof(User), null,
+            $"Created user '{user.UserName}'.", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (roles.Count > 0)
@@ -150,17 +144,8 @@ public class UsersController : ControllerBase
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "UserRolesAssign",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = $"Assigned {roles.Count} role(s) to user '{user.UserName}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "UserRolesAssign", nameof(User), user.Id.ToString(),
+            $"Assigned {roles.Count} role(s) to user '{user.UserName}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Roles assigned successfully." });
@@ -177,17 +162,8 @@ public class UsersController : ControllerBase
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "UserStatusUpdate",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = $"Set user '{user.UserName}' status to {(request.IsActive ? "Active" : "Inactive")}.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "UserStatusUpdate", nameof(User), user.Id.ToString(),
+            $"Set user '{user.UserName}' status to {(request.IsActive ? "Active" : "Inactive")}.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User status updated successfully." });
@@ -219,17 +195,8 @@ public class UsersController : ControllerBase
         user.UpdatedBy = User.Identity?.Name;
         user.UpdatedDate = DateTime.UtcNow;
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "UserUpdate",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = $"Updated user '{user.UserName}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "UserUpdate", nameof(User), user.Id.ToString(),
+            $"Updated user '{user.UserName}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User updated successfully." });
@@ -249,17 +216,8 @@ public class UsersController : ControllerBase
         }
 
         _unitOfWork.Repository<User>().Remove(user);
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "UserDelete",
-            EntityName = nameof(User),
-            EntityId = user.Id.ToString(),
-            Details = $"Deleted user '{user.UserName}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "UserDelete", nameof(User), user.Id.ToString(),
+            $"Deleted user '{user.UserName}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "User deleted successfully." });

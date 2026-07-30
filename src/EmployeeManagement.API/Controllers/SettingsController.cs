@@ -13,20 +13,22 @@ namespace EmployeeManagement.API.Controllers;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/settings")]
 [Authorize]
-public class SettingsController : ControllerBase
+public class SettingsController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuditLogService _auditLogService;
 
-    public SettingsController(IUnitOfWork unitOfWork)
+    public SettingsController(IUnitOfWork unitOfWork, IAuditLogService auditLogService)
     {
         _unitOfWork = unitOfWork;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet]
     [Authorize(Policy = Permissions.SettingsRead)]
     public async Task<IActionResult> GetSettings([FromQuery] string? category, CancellationToken cancellationToken)
     {
-        var query = _unitOfWork.Repository<SystemSetting>().Query().AsNoTracking().AsQueryable();
+        var query = _unitOfWork.Repository<SystemSetting>().Query().AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(category))
         {
@@ -99,26 +101,11 @@ public class SettingsController : ControllerBase
             setting.UpdatedDate = DateTime.UtcNow;
         }
 
-        await _unitOfWork.Repository<AuditLog>().AddAsync(new AuditLog
-        {
-            UserId = GetCurrentUserId(),
-            EventType = "SettingUpsert",
-            EntityName = nameof(SystemSetting),
-            EntityId = setting.Id == 0 ? null : setting.Id.ToString(),
-            Details = $"Upserted setting '{request.Category}.{request.Key}'.",
-            CreatedBy = User.Identity?.Name,
-            UpdatedBy = User.Identity?.Name,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
-        }, cancellationToken);
+        await RecordAuditLogAsync(_auditLogService, "SettingUpsert", nameof(SystemSetting), setting.Id == 0 ? null : setting.Id.ToString(),
+            $"Upserted setting '{request.Category}.{request.Key}'.", cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Ok(new { message = "Setting saved successfully." });
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-        return claim is not null && int.TryParse(claim.Value, out var userId) ? userId : null;
     }
 }
 
